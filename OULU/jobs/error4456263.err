@@ -1,0 +1,17 @@
+/opt/slurmnfs/slurmd/lhotse/job4456263/slurm_script: line 15: wait: `5s': not a pid or valid job spec
+/data/users2/jwardell1/miniconda3/envs/usp/lib/python3.11/site-packages/numpy/lib/function_base.py:520: RuntimeWarning: Mean of empty slice.
+  avg = a.mean(axis, **keepdims_kw)
+/data/users2/jwardell1/miniconda3/envs/usp/lib/python3.11/site-packages/numpy/core/_methods.py:121: RuntimeWarning: invalid value encountered in divide
+  ret = um.true_divide(
+/data/users2/jwardell1/miniconda3/envs/usp/lib/python3.11/site-packages/numpy/lib/function_base.py:2889: RuntimeWarning: Degrees of freedom <= 0 for slice
+  c = cov(x, y, rowvar, dtype=dtype)
+/data/users2/jwardell1/miniconda3/envs/usp/lib/python3.11/site-packages/numpy/lib/function_base.py:2748: RuntimeWarning: divide by zero encountered in divide
+  c *= np.true_divide(1, fact)
+/data/users2/jwardell1/miniconda3/envs/usp/lib/python3.11/site-packages/numpy/lib/function_base.py:2748: RuntimeWarning: invalid value encountered in multiply
+  c *= np.true_divide(1, fact)
+Traceback (most recent call last):
+  File "/data/users2/jwardell1/undersampling-project/OULU/section_data.py", line 59, in <module>
+    full_signal[roi].append([tr2150_tc[roi][tr2150_ix], 2150])
+                             ~~~~~~~~~^^^^^
+IndexError: index 180 is out of bounds for axis 0 with size 180
+/opt/slurmnfs/slurmd/lhotse/job4456263/slurm_script: line 28: wait: `5s': not a pid or valid job spec

@@ -7,7 +7,6 @@ import matplotlib.pyplot as plt
 from matplotlib.animation import FuncAnimation
 import uuid  # Make sure to import the uuid module
 
-
 def animate_matrix(
     dd, window_size, interval, stride, figsize=(8, 6), aspect_ratio=None
 ):
@@ -50,69 +49,70 @@ def animate_matrix(
     plt.show()
     return ani
 
+'''
+def animate_matrix(
+     dd,
+     window_size,
+     interval,
+     stride,
+     figsize=(8, 6),
+     aspect_ratio=None,
+     save_animation=False,
+     save_duration=4,
+ ):
+     fig, ax = plt.subplots(figsize=figsize)
+     lines = [
+         ax.plot([], [], ".-", ms=0.5, lw=0.3)[0] for _ in range(dd.shape[0])
+     ]
 
-# def animate_matrix(
-#     dd,
-#     window_size,
-#     interval,
-#     stride,
-#     figsize=(8, 6),
-#     aspect_ratio=None,
-#     save_animation=False,
-#     save_duration=4,
-# ):
-#     fig, ax = plt.subplots(figsize=figsize)
-#     lines = [
-#         ax.plot([], [], ".-", ms=0.5, lw=0.3)[0] for _ in range(dd.shape[0])
-#     ]
+     def init():
+         ax.set_xlim(0, window_size)
+         ax.set_ylim(np.min(dd), np.max(dd))
+         if aspect_ratio is not None:
+             ax.set_aspect(aspect_ratio)
+         return lines
 
-#     def init():
-#         ax.set_xlim(0, window_size)
-#         ax.set_ylim(np.min(dd), np.max(dd))
-#         if aspect_ratio is not None:
-#             ax.set_aspect(aspect_ratio)
-#         return lines
+     def update(frame):
+         start_col = frame * stride
+         end_col = start_col + window_size
+         for i, line in enumerate(lines):
+             if end_col <= dd.shape[1]:
+                 line.set_data(np.arange(window_size), dd[i, start_col:end_col])
+             else:
+                 # Avoid going beyond the number of columns in dd
+                 padding = np.empty(end_col - dd.shape[1])
+                 padding.fill(np.nan)  # Fill with NaNs
+                 data = np.hstack((dd[i, start_col:], padding))
+                 line.set_data(np.arange(window_size), data)
+         return lines
 
-#     def update(frame):
-#         start_col = frame * stride
-#         end_col = start_col + window_size
-#         for i, line in enumerate(lines):
-#             if end_col <= dd.shape[1]:
-#                 line.set_data(np.arange(window_size), dd[i, start_col:end_col])
-#             else:
-#                 # Avoid going beyond the number of columns in dd
-#                 padding = np.empty(end_col - dd.shape[1])
-#                 padding.fill(np.nan)  # Fill with NaNs
-#                 data = np.hstack((dd[i, start_col:], padding))
-#                 line.set_data(np.arange(window_size), data)
-#         return lines
+     frames_count = (dd.shape[1] - window_size) // stride + 1
+     frames_to_save = int((save_duration * 1000) / interval)
+     frames_range = range(min(frames_to_save, frames_count))
 
-#     frames_count = (dd.shape[1] - window_size) // stride + 1
-#     frames_to_save = int((save_duration * 1000) / interval)
-#     frames_range = range(min(frames_to_save, frames_count))
+     ani = FuncAnimation(
+         fig,
+         update,
+         frames=frames_range,
+         init_func=init,
+         blit=True,
+         interval=interval,
+     )
 
-#     ani = FuncAnimation(
-#         fig,
-#         update,
-#         frames=frames_range,
-#         init_func=init,
-#         blit=True,
-#         interval=interval,
-#     )
+     if save_animation:
+         # Generate a random filename using uuid
+         random_filename = f"animation_{uuid.uuid4()}.gif"
+         # Save the animation as an animated GIF
+         ani.save(random_filename, writer="imagemagick", fps=1000 / interval)
+         print(f"Saved animation to {random_filename}")
+         # Close the figure to prevent it from displaying after saving
+         plt.close(fig)
+     else:
+         # Display the animation if not saving
+         plt.show()
 
-#     if save_animation:
-#         # Generate a random filename using uuid
-#         random_filename = f"animation_{uuid.uuid4()}.gif"
-#         # Save the animation as an animated GIF
-#         ani.save(random_filename, writer="imagemagick", fps=1000 / interval)
-#         print(f"Saved animation to {random_filename}")
-#         # Close the figure to prevent it from displaying after saving
-#         plt.close(fig)
-#     else:
-#         # Display the animation if not saving
-#         plt.show()
-
-#     return ani
+     return ani
+'''
 
 
 def check_matrix_powers(W, A, powers, threshold):
@@ -181,11 +181,13 @@ def genData(A, rate=2, burnin=100, ssize=5000, noise=0.1, dist="normal"):
 
 u_rate = 1
 noise_svar = 0.1
-g = gk.ringmore(8, 2)
+g = gk.ringmore(53, 10)
 A = graph2adj(g)
-W = create_stable_weighted_matrix(A, threshold=0.1, powers=[2, 3, 4])
+#W = create_stable_weighted_matrix(A, threshold=0.1, powers=[2, 3, 4])
+W = create_stable_weighted_matrix(A, threshold=0.001, powers=[2])
 
-dd = genData(W, rate=u_rate, ssize=8000, noise=noise_svar)
+dd = genData(W, rate=u_rate, ssize=2961, noise=noise_svar)
+np.save('dd.npy', dd, allow_pickle=True)
 
 shift = 2.5
 shift_values = shift * np.arange(dd.shape[0])[:, np.newaxis]
@@ -198,6 +200,6 @@ animation = animate_matrix(
     stride=3,
     figsize=(10, 3),
     aspect_ratio="auto",
-    #    save_animation=True,  # Set to True to save the animation
-    #    save_duration=4,  # Duration of the saved animation in seconds
+    #save_animation=True,  # Set to True to save the animation
+    #save_duration=4,  # Duration of the saved animation in seconds
 )

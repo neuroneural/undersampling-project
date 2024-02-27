@@ -1,0 +1,20 @@
+done generating noise matrix for subject 1 of 10
+conversion error while generating matrix for dir /data/users2/jwardell1/nshor_docker/examples/oulu-project/OULU/20150210/processed
+done generating noise matrix for subject 2 of 10
+conversion error while generating matrix for dir /data/users2/jwardell1/nshor_docker/examples/oulu-project/OULU/20150410/processed
+done generating noise matrix for subject 3 of 10
+conversion error while generating matrix for dir /data/users2/jwardell1/nshor_docker/examples/oulu-project/OULU/20150417/processed
+done generating noise matrix for subject 4 of 10
+conversion error while generating matrix for dir /data/users2/jwardell1/nshor_docker/examples/oulu-project/OULU/20150421/processed
+done generating noise matrix for subject 5 of 10
+conversion error while generating matrix for dir /data/users2/jwardell1/nshor_docker/examples/oulu-project/OULU/20150428/processed
+done generating noise matrix for subject 6 of 10
+conversion error while generating matrix for dir /data/users2/jwardell1/nshor_docker/examples/oulu-project/OULU/20151030/processed
+done generating noise matrix for subject 7 of 10
+noise matrix for subject 7 saved to /data/users2/jwardell1/nshor_docker/examples/oulu-project/OULU/20151110/processed/var_noise.npy
+done generating noise matrix for subject 8 of 10
+conversion error while generating matrix for dir /data/users2/jwardell1/nshor_docker/examples/oulu-project/OULU/20151117/processed
+done generating noise matrix for subject 9 of 10
+noise matrix for subject 9 saved to /data/users2/jwardell1/nshor_docker/examples/oulu-project/OULU/20151127/processed/var_noise.npy
+done generating noise matrix for subject 10 of 10
+noise matrix for subject 10 saved to /data/users2/jwardell1/nshor_docker/examples/oulu-project/OULU/20151204/processed/var_noise.npy

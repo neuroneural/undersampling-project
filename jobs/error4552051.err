@@ -1,0 +1,4 @@
+  File "/data/users2/jwardell1/undersampling-project/OULU/python-scripts/makenoise.py", line 206
+    print(f'noise matrix for subject {i+1} saved to {{sub_out_dir}/var_noise.npy}')
+                                                                                  ^
+SyntaxError: f-string: single '}' is not allowed

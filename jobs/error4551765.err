@@ -1,0 +1,14 @@
+Traceback (most recent call last):
+  File "/data/users2/jwardell1/undersampling-project/HCP/python-scripts/makenoise.py", line 187, in <module>
+    W = create_stable_weighted_matrix(A, threshold=0.1, powers=[2])
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/data/users2/jwardell1/undersampling-project/HCP/python-scripts/makenoise.py", line 149, in create_stable_weighted_matrix
+    eigenvalues, _ = eigs(weighted_sparse, k=1, which="LM")
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/data/users2/jwardell1/miniconda3/envs/usp/lib/python3.11/site-packages/scipy/sparse/linalg/_eigen/arpack/arpack.py", line 1355, in eigs
+    params.iterate()
+  File "/data/users2/jwardell1/miniconda3/envs/usp/lib/python3.11/site-packages/scipy/sparse/linalg/_eigen/arpack/arpack.py", line 760, in iterate
+    self._raise_no_convergence()
+  File "/data/users2/jwardell1/miniconda3/envs/usp/lib/python3.11/site-packages/scipy/sparse/linalg/_eigen/arpack/arpack.py", line 377, in _raise_no_convergence
+    raise ArpackNoConvergence(msg % (num_iter, k_ok, self.k), ev, vec)
+scipy.sparse.linalg._eigen.arpack.arpack.ArpackNoConvergence: ARPACK error -1: No convergence (531 iterations, 0/1 eigenvectors converged) [ARPACK error -14: DNAUPD  did not find any eigenvalues to sufficient accuracy.]
