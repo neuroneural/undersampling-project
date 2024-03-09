@@ -3,7 +3,7 @@ import pandas as pd
 from polyssifier import poly
 import os
 
-data_info = pd.read_csv('data_poly_concat.csv', header=None)
+data_info = pd.read_csv('/data/users2/jwardell1/undersampling-project/HCP/csv-files/data_poly_concat.csv', header=None)
 file_paths = data_info[0].tolist()
 labels = data_info[1].astype(int).tolist()
 

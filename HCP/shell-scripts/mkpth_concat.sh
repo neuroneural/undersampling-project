@@ -1,6 +1,6 @@
 #!/bin/bash
 
-PATHSFILE=/data/users2/jwardell1/undersampling-project/HCP/shell-scripts/data.txt
+PATHSFILE=/data/users2/jwardell1/undersampling-project/HCP/txt-files/data.txt
 > $PATHSFILE
 
 SUBJECTSFILE=/data/users2/jwardell1/nshor_docker/examples/hcp-project/HCP/subjects.txt

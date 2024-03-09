@@ -1,10 +1,10 @@
 #!/bin/bash
 #SBATCH -n 1
-#SBATCH -c 1
-#SBATCH --mem=8G
+#SBATCH -c 32
+#SBATCH --mem=44g
 #SBATCH -p qTRD
 #SBATCH --time=20:00:00
-#SBATCH -J mkscts
+#SBATCH -J polyNoise
 #SBATCH -e /data/users2/jwardell1/undersampling-project/jobs/error%A.err
 #SBATCH -o /data/users2/jwardell1/undersampling-project/jobs/out%A.out
 #SBATCH -A psy53c17
@@ -22,10 +22,5 @@ CONDA_PATH=`which conda`
 eval "$(${CONDA_PATH} shell.bash hook)"
 conda activate /data/users2/jwardell1/miniconda3/envs/usp
 
-python /data/users2/jwardell1/undersampling-project/OULU/python-scripts/section_data.py &
-PYPID=$!
-wait $PYPID
 
-
-python /data/users2/jwardell1/undersampling-project/OULU/python-scripts/makenoisyfnc.py
-
+python /data/users2/jwardell1/undersampling-project/HCP/python-scripts/poly_noise.py

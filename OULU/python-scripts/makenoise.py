@@ -198,7 +198,7 @@ for i in range(len(lines)):
         W = create_stable_weighted_matrix(A, threshold=0.001, powers=[2])
         dd = genData(W, rate=u_rate, ssize=2961, noise=noise_svar)
     except:
-        print(f'conversion error while generating matrix for dir {sub_out_dir}')
+        print(f'convergence error while generating matrix for dir {sub_out_dir}')
         continue
 
     # Save the concatenated array as f1f2concat.npy in the same directory
