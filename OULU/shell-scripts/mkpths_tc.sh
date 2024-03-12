@@ -7,7 +7,7 @@ DATADIR=/data/users2/jwardell1/nshor_docker/examples/oulu-project/OULU
 PATHS_FILE="/data/users2/jwardell1/undersampling-project/OULU/txt-files/tc_data.txt"
 > $PATHS_FILE
 
-n_sections=18
+n_sections=80
 
 #20150210_tr100_section14.npy
 

@@ -67,5 +67,5 @@ data = imputer.fit_transform(data)
 
 report = poly(data, labels, n_folds=8, scale=True, exclude=['Decision Tree', 'Random Forest'])
 
-report.plot_scores(path='og_data')
+report.plot_scores(path='noise_data')
 

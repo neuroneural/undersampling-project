@@ -4,11 +4,11 @@ PATHSFILE=/data/users2/jwardell1/undersampling-project/OULU/txt-files/data_conca
 > $PATHSFILE
 
 SUBJECTSFILE=/data/users2/jwardell1/nshor_docker/examples/oulu-project/OULU/subjects.txt
-
+N_SECTIONS=80
 
 # FNC_20150210_TR100.npy
 while IFS= read -r subjectID; do
-	for (( i=0; i < 18; i++)); do
+	for (( i=0; i < $N_SECTIONS; i++)); do
 		for tr in 2150 100
 		do
 			#20150210_tr100_section11_triu_fnc.npy

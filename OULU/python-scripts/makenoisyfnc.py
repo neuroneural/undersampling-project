@@ -79,16 +79,16 @@ for i in range(0, len(lines), N_SRS):
     r_noise = var_noise[:,start_ix:end_ix]
 
 
-    sr1_noise = sr1 + b_noise
-    sr2_noise = sr2 + r_noise
+    sr1_noise = sr1 + b_noise/100
+    sr2_noise = sr2 + r_noise/100
 
     fnc1 = np.corrcoef(sr1_noise)
     fnc2 = np.corrcoef(sr2_noise)
-    fnc_concat = np.concatenate((fnc1, fnc2))
 
 
     fnc1_triu = fnc1[np.triu_indices(fnc1.shape[0])]
     fnc2_triu = fnc2[np.triu_indices(fnc2.shape[0])]
+    fnc_concat = np.concatenate((fnc1_triu, fnc2_triu))
 
     filearr = file_path_sr1.split('/')
     file_name = filearr[len(filearr)-1]
