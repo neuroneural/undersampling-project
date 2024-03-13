@@ -12,12 +12,13 @@ n_sections = len(lines) / N_SRS / N_SUBS
 
 
 ix = 0
-
+print(f'len lines {len(lines)}')
 # Iterate over every two lines
+num_files_not_found = 0
 for i in range(0, len(lines), N_SRS):
     print(f'i - {i}')
 
-    if ((i != 0) and (i % 36 == 0)):
+    if ((i != 0) and (i % 160 == 0)):
        ix = 0
 
 
@@ -39,8 +40,9 @@ for i in range(0, len(lines), N_SRS):
        sr1 = np.load(file_path_sr1)
        sr2 = np.load(file_path_sr2)
     except Exception as e:
-       print(e)
-       #continue
+       #print(e)
+       #num_files_not_found += 1
+       continue
 
     if sr1.shape[0] != 53:
        sr1 = sr1.T
@@ -57,6 +59,12 @@ for i in range(0, len(lines), N_SRS):
 
     print(f'sr1.shape - {sr1.shape}')
     print(f'sr2.shape - {sr2.shape}')
+    
+    if sr2.shape[1] < 1645:
+       continue
+    
+    if sr1.shape[1] < 100:
+       continue
 
 
     proc_dir = file_path_sr1[:file_path_sr1.rfind('/')]
@@ -67,17 +75,23 @@ for i in range(0, len(lines), N_SRS):
     std = np.std(var_noise, axis=1, keepdims=True)
     var_noise = (var_noise - mean) / std
 
-    n_elements_per_section = var_noise.shape[1] // n_sections
+   #  n_elements_per_section = var_noise.shape[1] // n_sections
+    
 
-   
-    start_ix = int(ix * n_elements_per_section)
-    end_ix = int(start_ix + n_elements_per_section)
+    window_size = 1645
+    stride = 16
+    start_ix = int(ix * stride)
+    end_ix = int(start_ix + window_size)
 
-    sampling_factor = int(np.ceil(1 / ( (sr1.shape[1] * n_sections) / var_noise.shape[1] )))
+    print(f'start_ix - {start_ix}')
+    print(f'end_ix - {end_ix}')
 
-    b_noise = var_noise[:,start_ix:end_ix:sampling_factor]
+    sampling_factor = int(np.ceil(sr2.shape[1] / sr1.shape[1]))
+
+    b_noise = var_noise[:,start_ix:end_ix+55:sampling_factor]
     r_noise = var_noise[:,start_ix:end_ix]
-
+    print(f'b_noise.shape - {b_noise.shape}')
+    print(f'r_noise.shape - {r_noise.shape}')
 
     sr1_noise = sr1 + b_noise/100
     sr2_noise = sr2 + r_noise/100
@@ -100,8 +114,15 @@ for i in range(0, len(lines), N_SRS):
    
 
     # Save the concatenated array as sr1sr2concat.npy in the same directory
+    print(f'now saving {proc_dir}/{subject_id}_tr2150_{section}_fnc1_triu_noise.npy')
     np.save(f'{proc_dir}/{subject_id}_tr2150_{section}_fnc1_triu_noise.npy', fnc1_triu, allow_pickle=True)
+
+    print(f'now saving {proc_dir}/{subject_id}_tr100_{section}_fnc2_triu_noise.npy')
     np.save(f'{proc_dir}/{subject_id}_tr100_{section}_fnc2_triu_noise.npy', fnc2_triu, allow_pickle=True)
+
+    print(f'{proc_dir}/{subject_id}_concat_{section}_fnc_noise.npy')
     np.save(f'{proc_dir}/{subject_id}_concat_{section}_fnc_noise.npy', fnc_concat, allow_pickle=True)
 
     ix += 1
+
+print(2*num_files_not_found)
