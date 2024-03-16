@@ -4,6 +4,7 @@ from polyssifier import poly_subject
 import os
 import logging  # Import the logging module
 import scipy.sparse as sp
+import scipy.io
 from scipy.sparse.linalg import eigs
 from gunfolds.utils import graphkit as gk
 from gunfolds.conversions import graph2adj
@@ -57,7 +58,7 @@ def create_stable_weighted_matrix(
     )
 
 
-def drawsamplesLG(A, nstd=0.1, samples=100):
+def drawsamplesLG(A, nstd=0.1, samples=10):
     n = A.shape[0]
     data = np.zeros([n, samples])
     data[:, 0] = nstd * np.random.randn(A.shape[0])
@@ -73,19 +74,23 @@ def genData(A, rate=2, burnin=100, ssize=5000, noise=0.1, dist="normal", nstd=0.
     return data[:, ::rate]
 
 
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 
 #Step 0: Iterate through values for n_std, burnin, noise_svar
 n_std = [1e-4, 1e-3, 1e-2, 1e-1]
 burnin = [50, 100, 125, 175]
-noise_svar = [1e-4, 1e-3, 1e-2, 1e-1]
-NOISE_SIZE=2961*2
+noise_svar = [0.0001, 0.001, 0.01, 0.1]
+NOISE_SIZE = 2961*2
+NUM_SUBS = 10
 subjects = [20150210, 20150417, 20150428, 20151110, 20151127, 
             20150410, 20150421, 20151030, 20151117, 20151204]
 
+res1 = []
+res2 = []
+res3 = []
 
-
-for std in n_std:
+for nstd in n_std:
     for burn in burnin:
         for noise in noise_svar:
             u_rate = 1
@@ -95,45 +100,50 @@ for std in n_std:
             #Step 1: Load data, compute noise, perform zscoring, add noise to loaded data
             num_converged = 0
             noises = dict()
-            
+            converged_subjects = []
+
             with open('/data/users2/jwardell1/undersampling-project/OULU/txt-files/sub_out_dirs.txt', 'r') as file:
                 lines = file.readlines()
 
-            for i in range(len(lines)):
-                sub_out_dir = lines[i].strip()
-                try:
-                    W = create_stable_weighted_matrix(A, threshold=0.001, powers=[2])
-                    var_noise = genData(W, rate=u_rate, burnin=burn, ssize=NOISE_SIZE, noise=noise, nstd=std)
-                except:
-                    print(f'convergence error while generating matrix for dir {sub_out_dir}')
-                    continue
-                
-                #TODO - fix this part to keep generating noise til all have converged
-                num_converged += 1
+            while num_converged < len(lines):
+                for i in range(len(lines)):
+                    if i in converged_subjects:
+                        continue  
+                    
+                    sub_out_dir = lines[i].strip()
+                    try:
+                        W = create_stable_weighted_matrix(A, threshold=0.001, powers=[2])
+                        var_noise = genData(W, rate=u_rate, burnin=burn, ssize=NOISE_SIZE, noise=noise, nstd=nstd)
+                    except Exception as e:
+                        print(f'Convergence error while generating matrix for dir {sub_out_dir}, num converged: {num_converged}')
+                        print(e)
+                        continue
 
-                #zscore var_noise
-                mean = np.mean(var_noise, axis=1, keepdims=True)
-                std = np.std(var_noise, axis=1, keepdims=True)
-                var_noise = (var_noise - mean) / std
+                    # zscore var_noise
+                    mean = np.mean(var_noise, axis=1, keepdims=True)
+                    std = np.std(var_noise, axis=1, keepdims=True)
+                    var_noise = (var_noise - mean) / std
 
-                noises[subjects[i]] = var_noise
+                    noises[subjects[i]] = var_noise
+                    converged_subjects.append(i)
+                    num_converged += 1
 
 
             tc_sr1 = dict()
             tc_sr2 = dict()
             tc_sr1_noise = dict()
             tc_sr2_noise = dict()
-            with open('/data/users2/jwardell1/undersampling-project/OULU/txt-files/tc_data.txt', 'r') as tc_data:
+            with open('/data/users2/jwardell1/undersampling-project/OULU/txt-files/allsubs_TCs.txt', 'r') as tc_data:
                 lines = tc_data.readlines()
             
-            for i in range(len(lines)):
+            for i in range(0, len(lines), 2):
                 file_path_sr1 = lines[i].strip()
                 file_path_sr2 = lines[i + 1].strip()
-                print(f'file_path_sr2 - {file_path_sr2}') #convert to logger
-                print(f'file_path_sr1 - {file_path_sr1}') #convert to logger
+                logging.info(f'Processing SR1: {file_path_sr1}')
+                logging.info(f'Processing SR2: {file_path_sr2}')
                 try:
-                    sr1 = np.load(file_path_sr1)
-                    sr2 = np.load(file_path_sr2)
+                    sr1 = scipy.io.loadmat(file_path_sr1)['TCMax']
+                    sr2 = scipy.io.loadmat(file_path_sr2)['TCMax']
                 except:
                     continue
 
@@ -148,8 +158,8 @@ for std in n_std:
                     sr2 = sr1
                     sr1 = temp
 
-                print(f'sr1.shape - {sr1.shape}')#convert to logger
-                print(f'sr2.shape - {sr2.shape}')#convert to logger
+                logging.info(f'sr1.shape - {sr1.shape}')#convert to logger
+                logging.info(f'sr2.shape - {sr2.shape}')#convert to logger
 
                 #zscore tc_data
                 mean = np.mean(sr1, axis=1, keepdims=True)
@@ -164,9 +174,267 @@ for std in n_std:
                 tc_sr2[subjects[i//2]] = sr2 #TR=2150ms
 
                 tc_sr1_noise[subjects[i//2]] = sr1 + var_noise[:,::2]
-                tc_sr1_noise[subjects[i//2]] = sr1 + var_noise[:,::33]
+                tc_sr2_noise[subjects[i//2]] = sr2 + var_noise[:,::33]
 
             #TODO- Step 2: Perform windowing on noise/non-noise data
+            windows_sr1 = []
+            windows_sr2 = []
+            windows_sr1_noise = []
+            windows_sr2_noise = []
+            windows_concat = []
+            windows_concat_noise = []
+            lsr1 = []
+            lsr1n = []
+            lsr2 = []
+            lsr2n = []
+            lconcat = []
+            lconcatn = []
+            g1 = []
+            g1n = []
+            g2 = []
+            g2n = []
+            gc = []
+            gcn = []
+            for i in range(NUM_SUBS):
+                subject_id = subjects[i]
+                if subject_id == '': 
+                    continue
+
+                sr1 = tc_sr1[subject_id]#TR=100ms
+                sr1_noise = tc_sr1_noise[subject_id]
+                
+                sr2 = tc_sr2[subject_id]#TR=2150ms
+                sr2_noise = tc_sr2_noise[subject_id]
+
+                n_regions, n_tp_tr100 = sr1.shape
+                _, n_tp_tr2150 = sr2.shape
+
+                tr2150_window_size = 100
+                tr2150_stride = 1
+                n_sections = 80 
+                tr2150_start_ix = 0
+                tr2150_end_ix = tr2150_window_size
+
+                tr100_window_size = int((n_tp_tr100 / n_tp_tr2150) * tr2150_window_size)
+                tr100_stride = n_tp_tr100 // n_tp_tr2150
+                tr100_start_ix = 0
+                tr100_end_ix = tr100_window_size
+
+
+                for j in range(n_sections):
+                    logging.info(f"Processing section {j+1}/{n_sections} for subject {subject_id}")
+
+                    tr100_section = sr1[:, tr100_start_ix:tr100_end_ix]
+                    tr100_section_noise = sr1_noise[:, tr100_start_ix:tr100_end_ix]
+
+
+
+                    tr2150_section = sr2[:, tr2150_start_ix:tr2150_end_ix]
+                    tr2150_section_noise = sr2_noise[:, tr2150_start_ix:tr2150_end_ix]
+
+
+                    windows_sr1.append(np.corrcoef(tr100_section)[np.triu_indices(n_regions)])
+                    windows_sr1_noise.append(np.corrcoef(tr100_section_noise)[np.triu_indices(n_regions)])
+                    lsr1.append('0') #no-noise: class label 0
+                    lsr1n.append('1') #noise-present: class label 1
+                    g1.append(subject_id)
+                    g1n.append(subject_id)
+
+
+                    windows_sr2.append(np.corrcoef(tr2150_section)[np.triu_indices(n_regions)])
+                    windows_sr2_noise.append(np.corrcoef(tr2150_section_noise)[np.triu_indices(n_regions)])
+                    lsr2.append('0') #no-noise: class label 0
+                    lsr2n.append('1') #noise-present: class label 1
+                    g2.append(subject_id)
+                    g2n.append(subject_id)
+
+
+                    windows_concat.append(np.concatenate((windows_sr1[j], windows_sr2[j])))
+                    windows_concat_noise.append(np.concatenate((windows_sr1_noise[j], windows_sr2_noise[j])))
+                    lconcat.append('0') #no-noise: class label 0
+                    lconcatn.append('1') #noise-present: class label 1
+                    gc.append(subject_id)
+                    gcn.append(subject_id)
+
+                    tr100_start_ix += tr100_stride
+                    tr100_end_ix = tr100_end_ix + tr100_stride
+                        
+                    tr2150_start_ix += tr2150_stride
+                    tr2150_end_ix = tr2150_end_ix + tr2150_stride
+
+            del tc_sr1
+            del tc_sr2
+            del tc_sr1_noise
+            del tc_sr2_noise
+
+
+            #TODO- Step 3: Run polyssifier on windowed data
+            data_sr1 = np.concatenate((windows_sr1, windows_sr1_noise))
+            labels_sr1 = np.concatenate((lsr1, lsr1n))
+            groups_sr1 = np.concatenate((g1, g1n))
+
+            data_sr2 = np.concatenate((windows_sr2, windows_sr2_noise))
+            labels_sr2 = np.concatenate((lsr2, lsr2n))
+            groups_sr2 = np.concatenate((g2, g2n))
+
+            data_concat = np.concatenate((windows_concat, windows_concat_noise))
+            labels_concat = np.concatenate((lconcat, lconcatn))
+            groups_concat = np.concatenate((gc, gcn))
+            from sklearn.impute import SimpleImputer
+
+            from sklearn.preprocessing import LabelEncoder
             
 
-#TODO- Step 3: Run polyssifier on windowed data
+            # Initialize SimpleImputer
+            imputer = SimpleImputer(strategy='mean')
+
+            # Impute missing values and encode labels for each dataset
+            data_sr1 = imputer.fit_transform(data_sr1)
+            data_sr2 = imputer.fit_transform(data_sr2)
+            data_concat = imputer.fit_transform(data_concat)
+
+            # Initialize LabelEncoder
+            label_encoder = LabelEncoder()
+
+            # Encode string labels into numeric values
+            labels_sr1_encoded = label_encoder.fit_transform(labels_sr1)
+            labels_sr2_encoded = label_encoder.fit_transform(labels_sr1)
+            labels_concat_encoded = label_encoder.fit_transform(labels_concat)
+
+            # Perform poly_subject and plot_scores for each dataset
+            report1 = poly_subject(data_sr1, labels_sr1_encoded, groups_sr1, n_folds=10, project_name='SR1', scale=True, exclude=['Decision Tree', 'Random Forest', 'Voting'],  scoring='f1')
+            for classifier in report1.scores.columns.levels[0]:
+                if classifier == 'Voting':
+                    continue
+
+                # Calculate the average test score for the current classifier
+                mean_test_score = np.mean(report1.scores[classifier, 'test'])
+
+                # Append the results to the list as a dictionary
+                res1.append({'n_std': nstd,
+                             'burnin': burn,
+                             'noise_svar': noise,
+                             'classifier': classifier,
+                             'avg_test_score': mean_test_score})
+
+
+
+            report2 = poly_subject(data_sr2, labels_sr2_encoded, groups_sr2, n_folds=10, project_name='SR2', scale=True, exclude=['Decision Tree', 'Random Forest', 'Voting'],  scoring='f1')
+            for classifier in report2.scores.columns.levels[0]:
+                if classifier == 'Voting':
+                    continue
+                # Calculate the average test score for the current classifier
+                mean_test_score = np.mean(report2.scores[classifier, 'test'])
+
+                # Append the results to the list as a dictionary
+                res2.append({'n_std': nstd,
+                             'burnin': burn,
+                             'noise_svar': noise,
+                             'classifier': classifier,
+                             'avg_test_score': mean_test_score})
+
+
+            report3 = poly_subject(data_concat, labels_concat_encoded, groups_concat, n_folds=10, project_name='CONCAT', scale=True, exclude=['Decision Tree', 'Random Forest', 'Voting'],  scoring='f1')
+            for classifier in report3.scores.columns.levels[0]:
+                if classifier == 'Voting':
+                    continue
+                # Calculate the average test score for the current classifier
+                mean_test_score = np.mean(report3.scores[classifier, 'test'])
+
+                # Append the results to the list as a dictionary
+                res3.append({'n_std': nstd,
+                             'burnin': burn,
+                             'noise_svar': noise,
+                             'classifier': classifier,
+                             'avg_test_score': mean_test_score})
+
+            
+
+#populate dataframe here for combimation of 'n_std', 'burnin', 'noise_svar
+df1 = pd.DataFrame(res1)
+df2 = pd.DataFrame(res2)
+df3 = pd.DataFrame(res3)
+
+import seaborn as sns
+import matplotlib.pyplot as plt
+
+# Plot test score vs n_std for df1
+plt.figure(figsize=(10, 6))
+sns.lineplot(data=df1, x='n_std', y='avg_test_score', marker='o')
+plt.title('Test Score vs n_std for df1')
+plt.xlabel('n_std')
+plt.ylabel('Average Test Score')
+plt.savefig('test_score_vs_n_std_df1.png')
+plt.close()
+
+# Plot test score vs burnin for df1
+plt.figure(figsize=(10, 6))
+sns.lineplot(data=df1, x='burnin', y='avg_test_score', marker='o')
+plt.title('Test Score vs burnin for df1')
+plt.xlabel('burnin')
+plt.ylabel('Average Test Score')
+plt.savefig('test_score_vs_burnin_df1.png')
+plt.close()
+
+# Plot test score vs noise_svar for df1
+plt.figure(figsize=(10, 6))
+sns.lineplot(data=df1, x='noise_svar', y='avg_test_score', marker='o')
+plt.title('Test Score vs noise_svar for df1')
+plt.xlabel('noise_svar')
+plt.ylabel('Average Test Score')
+plt.savefig('test_score_vs_noise_svar_df1.png')
+plt.close()
+
+# Plot test score vs n_std for df2
+plt.figure(figsize=(10, 6))
+sns.lineplot(data=df2, x='n_std', y='avg_test_score', marker='o')
+plt.title('Test Score vs n_std for df2')
+plt.xlabel('n_std')
+plt.ylabel('Average Test Score')
+plt.savefig('test_score_vs_n_std_df2.png')
+plt.close()
+
+# Plot test score vs burnin for df2
+plt.figure(figsize=(10, 6))
+sns.lineplot(data=df2, x='burnin', y='avg_test_score', marker='o')
+plt.title('Test Score vs burnin for df2')
+plt.xlabel('burnin')
+plt.ylabel('Average Test Score')
+plt.savefig('test_score_vs_burnin_df2.png')
+plt.close()
+
+# Plot test score vs noise_svar for df2
+plt.figure(figsize=(10, 6))
+sns.lineplot(data=df2, x='noise_svar', y='avg_test_score', marker='o')
+plt.title('Test Score vs noise_svar for df2')
+plt.xlabel('noise_svar')
+plt.ylabel('Average Test Score')
+plt.savefig('test_score_vs_noise_svar_df2.png')
+plt.close()
+
+# Plot test score vs n_std for df3
+plt.figure(figsize=(10, 6))
+sns.lineplot(data=df3, x='n_std', y='avg_test_score', marker='o')
+plt.title('Test Score vs n_std for df3')
+plt.xlabel('n_std')
+plt.ylabel('Average Test Score')
+plt.savefig('test_score_vs_n_std_df3.png')
+plt.close()
+
+# Plot test score vs burnin for df3
+plt.figure(figsize=(10, 6))
+sns.lineplot(data=df3, x='burnin', y='avg_test_score', marker='o')
+plt.title('Test Score vs burnin for df3')
+plt.xlabel('burnin')
+plt.ylabel('Average Test Score')
+plt.savefig('test_score_vs_burnin_df3.png')
+plt.close()
+
+# Plot test score vs noise_svar for df3
+plt.figure(figsize=(10, 6))
+sns.lineplot(data=df3, x='noise_svar', y='avg_test_score', marker='o')
+plt.title('Test Score vs noise_svar for df3')
+plt.xlabel('noise_svar')
+plt.ylabel('Average Test Score')
+plt.savefig('test_score_vs_noise_svar_df3.png')
+plt.close()
