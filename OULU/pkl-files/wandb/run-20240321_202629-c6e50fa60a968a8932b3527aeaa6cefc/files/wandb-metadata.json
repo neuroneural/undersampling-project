@@ -1,0 +1,111 @@
+{
+    "os": "Linux-5.4.0-169-generic-x86_64-with-glibc2.31",
+    "python": "3.11.7",
+    "heartbeatAt": "2024-03-21T20:26:30.088104",
+    "startedAt": "2024-03-21T20:26:29.380846",
+    "docker": null,
+    "cuda": null,
+    "args": [],
+    "state": "running",
+    "program": "<python with no main file>",
+    "codePathLocal": null,
+    "git": {
+        "remote": "https://github.com/jawardell/undersampling-project.git",
+        "commit": "0f346a0a2531e8894571a94799fa05b0fd0c4971"
+    },
+    "email": "joanne.wardell6@gmail.com",
+    "root": "/data/users2/jwardell1/undersampling-project",
+    "host": "arctrdgndev101",
+    "username": "jwardell1",
+    "executable": "/data/users2/jwardell1/miniconda3/envs/usp/bin/python",
+    "cpu_count": 12,
+    "cpu_count_logical": 12,
+    "cpu_freq": {
+        "current": 1914.0605833333336,
+        "min": 1200.0,
+        "max": 2800.0
+    },
+    "cpu_freq_per_core": [
+        {
+            "current": 1227.737,
+            "min": 1200.0,
+            "max": 2800.0
+        },
+        {
+            "current": 2639.836,
+            "min": 1200.0,
+            "max": 2800.0
+        },
+        {
+            "current": 1200.093,
+            "min": 1200.0,
+            "max": 2800.0
+        },
+        {
+            "current": 2639.4,
+            "min": 1200.0,
+            "max": 2800.0
+        },
+        {
+            "current": 1200.469,
+            "min": 1200.0,
+            "max": 2800.0
+        },
+        {
+            "current": 2602.143,
+            "min": 1200.0,
+            "max": 2800.0
+        },
+        {
+            "current": 1200.904,
+            "min": 1200.0,
+            "max": 2800.0
+        },
+        {
+            "current": 2605.78,
+            "min": 1200.0,
+            "max": 2800.0
+        },
+        {
+            "current": 1213.433,
+            "min": 1200.0,
+            "max": 2800.0
+        },
+        {
+            "current": 2580.211,
+            "min": 1200.0,
+            "max": 2800.0
+        },
+        {
+            "current": 1240.86,
+            "min": 1200.0,
+            "max": 2800.0
+        },
+        {
+            "current": 2617.861,
+            "min": 1200.0,
+            "max": 2800.0
+        }
+    ],
+    "disk": {
+        "/": {
+            "total": 218.4388313293457,
+            "used": 55.81962203979492
+        }
+    },
+    "gpu": "NVIDIA RTX A2000 12GB",
+    "gpu_count": 2,
+    "gpu_devices": [
+        {
+            "name": "NVIDIA RTX A2000 12GB",
+            "memory_total": 12878610432
+        },
+        {
+            "name": "NVIDIA RTX A2000 12GB",
+            "memory_total": 12878610432
+        }
+    ],
+    "memory": {
+        "total": 125.84092330932617
+    }
+}

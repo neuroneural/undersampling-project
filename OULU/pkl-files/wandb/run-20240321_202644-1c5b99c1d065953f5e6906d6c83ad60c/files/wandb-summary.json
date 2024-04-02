@@ -1,0 +1,1 @@
+{"n_std": 1e-08, "burnin": 175, "noise_svar": 1e-08, "scalar": 50, "classifier": "SVM", "auc": 0.50576953125, "_timestamp": 1711052808.8757155, "_runtime": 4.662723541259766, "_step": 0, "_wandb": {"runtime": 3}}

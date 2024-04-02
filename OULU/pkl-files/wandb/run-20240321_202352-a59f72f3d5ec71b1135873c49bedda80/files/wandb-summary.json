@@ -1,0 +1,1 @@
+{"n_std": 1e-08, "burnin": 50, "noise_svar": 1e-08, "scalar": 50, "classifier": "Naive Bayes", "auc": 0.48800937499999997, "_timestamp": 1711052637.238323, "_runtime": 4.461745977401733, "_step": 0, "_wandb": {"runtime": 3}}

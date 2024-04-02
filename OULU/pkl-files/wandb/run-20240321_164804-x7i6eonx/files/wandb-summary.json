@@ -1,0 +1,1 @@
+{"n_std": 1e-08, "burnin": 175, "noise_svar": 1e-08, "scalar": 1, "classifier": "Logistic Regression", "auc": 0.986878125, "_timestamp": 1711054088.3811574, "_runtime": 3.49438738822937, "_step": 0, "_wandb": {"runtime": 2}}

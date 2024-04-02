@@ -1,0 +1,1 @@
+{"n_std": 1e-08, "burnin": 50, "noise_svar": 1e-08, "scalar": 1, "classifier": "Nearest Neighbors", "auc": 0.72375, "_timestamp": 1711052607.2902784, "_runtime": 4.416030406951904, "_step": 0, "_wandb": {"runtime": 3}}

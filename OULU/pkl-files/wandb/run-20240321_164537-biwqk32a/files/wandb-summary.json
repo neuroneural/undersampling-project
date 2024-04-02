@@ -1,0 +1,1 @@
+{"n_std": 1e-08, "burnin": 50, "noise_svar": 1e-08, "scalar": 1, "classifier": "Multilayer Perceptron", "auc": 0.9631703125000001, "_timestamp": 1711053940.6481204, "_runtime": 3.4930853843688965, "_step": 0, "_wandb": {"runtime": 2}}
