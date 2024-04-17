@@ -1,8 +1,11 @@
 import numpy as np
+
 import scipy.sparse as sp
 from scipy.sparse.linalg import eigs
 from gunfolds.utils import graphkit as gk
 from gunfolds.conversions import graph2adj
+
+
 import matplotlib.pyplot as plt
 
 def check_matrix_powers(W, A, powers, threshold):
