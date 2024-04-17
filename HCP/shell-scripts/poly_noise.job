@@ -23,4 +23,4 @@ eval "$(${CONDA_PATH} shell.bash hook)"
 conda activate /data/users2/jwardell1/miniconda3/envs/usp
 
 
-python /data/users2/jwardell1/undersampling-project/HCP/python-scripts/poly_noise.py
+python /data/users2/jwardell1/undersampling-project/HCP/python-scripts/poly_noise1.py

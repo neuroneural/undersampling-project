@@ -4,117 +4,6 @@ from scipy.sparse.linalg import eigs
 from gunfolds.utils import graphkit as gk
 from gunfolds.conversions import graph2adj
 import matplotlib.pyplot as plt
-from matplotlib.animation import FuncAnimation
-import uuid  # Make sure to import the uuid module
-import os.path
-
-def animate_matrix(
-    dd, window_size, interval, stride, figsize=(8, 6), aspect_ratio=None
-):
-    fig, ax = plt.subplots(figsize=figsize)
-    lines = [
-        ax.plot([], [], ".-", ms=0.5, lw=0.3)[0] for _ in range(dd.shape[0])
-    ]
-
-    def init():
-        ax.set_xlim(0, window_size)
-        ax.set_ylim(np.min(dd), np.max(dd))
-        if aspect_ratio is not None:
-            ax.set_aspect(aspect_ratio)
-        return lines
-
-    def update(frame):
-        start_col = frame * stride
-        end_col = start_col + window_size
-        for i, line in enumerate(lines):
-            if end_col <= dd.shape[1]:
-                line.set_data(np.arange(window_size), dd[i, start_col:end_col])
-            else:
-                # Avoid going beyond the number of columns in dd
-                padding = np.empty(end_col - dd.shape[1])
-                padding.fill(np.nan)  # Fill with NaNs
-                data = np.hstack((dd[i, start_col:], padding))
-                line.set_data(np.arange(window_size), data)
-        return lines
-
-    frames_count = (dd.shape[1] - window_size) // stride + 1
-    ani = FuncAnimation(
-        fig,
-        update,
-        frames=range(frames_count),
-        init_func=init,
-        blit=True,
-        interval=interval,
-    )
-
-    plt.show()
-    return ani
-
-'''
-def animate_matrix(
-     dd,
-     window_size,
-     interval,
-     stride,
-     figsize=(8, 6),
-     aspect_ratio=None,
-     save_animation=False,
-     save_duration=4,
- ):
-     fig, ax = plt.subplots(figsize=figsize)
-     lines = [
-         ax.plot([], [], ".-", ms=0.5, lw=0.3)[0] for _ in range(dd.shape[0])
-     ]
-
-     def init():
-         ax.set_xlim(0, window_size)
-         ax.set_ylim(np.min(dd), np.max(dd))
-         if aspect_ratio is not None:
-             ax.set_aspect(aspect_ratio)
-         return lines
-
-     def update(frame):
-         start_col = frame * stride
-         end_col = start_col + window_size
-         for i, line in enumerate(lines):
-             if end_col <= dd.shape[1]:
-                 line.set_data(np.arange(window_size), dd[i, start_col:end_col])
-             else:
-                 # Avoid going beyond the number of columns in dd
-                 padding = np.empty(end_col - dd.shape[1])
-                 padding.fill(np.nan)  # Fill with NaNs
-                 data = np.hstack((dd[i, start_col:], padding))
-                 line.set_data(np.arange(window_size), data)
-         return lines
-
-     frames_count = (dd.shape[1] - window_size) // stride + 1
-     frames_to_save = int((save_duration * 1000) / interval)
-     frames_range = range(min(frames_to_save, frames_count))
-
-     ani = FuncAnimation(
-         fig,
-         update,
-         frames=frames_range,
-         init_func=init,
-         blit=True,
-         interval=interval,
-     )
-
-     if save_animation:
-         # Generate a random filename using uuid
-         random_filename = f"animation_{uuid.uuid4()}.gif"
-         # Save the animation as an animated GIF
-         ani.save(random_filename, writer="imagemagick", fps=1000 / interval)
-         print(f"Saved animation to {random_filename}")
-         # Close the figure to prevent it from displaying after saving
-         plt.close(fig)
-     else:
-         # Display the animation if not saving
-         plt.show()
-
-     return ani
-'''
-
 
 def check_matrix_powers(W, A, powers, threshold):
     for n in powers:
@@ -164,7 +53,7 @@ def create_stable_weighted_matrix(
     )
 
 
-def drawsamplesLG(A, nstd=0.1, samples=100):
+def drawsamplesLG(A, nstd, samples):
     n = A.shape[0]
     data = np.zeros([n, samples])
     data[:, 0] = nstd * np.random.randn(A.shape[0])
@@ -173,41 +62,61 @@ def drawsamplesLG(A, nstd=0.1, samples=100):
     return data
 
 
-def genData(A, rate=2, burnin=100, ssize=5000, noise=0.1, dist="normal"):
-    Agt = A
-    data = drawsamplesLG(Agt, samples=burnin + (ssize * rate), nstd=noise)
+def genData(A, rate=2, burnin=100, ssize=5000, nstd=1):
+    Agt = A.copy()
+    data = drawsamplesLG(Agt, samples=burnin + (ssize * rate), nstd=nstd)
     data = data[:, burnin:]
     return data[:, ::rate]
 
 
+#TODO - fix this and save it for each sub, check to make sure it hasn't diverged/converged same thing as using a fixed seed
 u_rate = 1
-noise_svar = 0.1
-g = gk.ringmore(53, 13)
+g = gk.ringmore(53, 10) 
 A = graph2adj(g)
-#W = create_stable_weighted_matrix(A, threshold=0.1, powers=[2, 3, 4])
+
+nstd = 1.0
+burn = 100
+threshold = 0.0001
+NOISE_SIZE = 1200
+
+num_converged = 0
+converged_subjects = []
 
 
 with open('/data/users2/jwardell1/undersampling-project/HCP/txt-files/sub_out_dirs.txt', 'r') as file:
-    lines = file.readlines()
+        lines = file.readlines()
 
-for i in range(len(lines)):
-    sub_out_dir = lines[i].strip()
-    if os.path.isfile(f'{sub_out_dir}/var_noise.npy'):
-        continue
-    
-    try:
-        W = create_stable_weighted_matrix(A, threshold=0.001, powers=[2])
-        dd = genData(W, rate=u_rate, ssize=1200, noise=noise_svar)
-    except:
-        print(f'convergence error while generating matrix for dir {sub_out_dir}')
-        continue
+while num_converged < len(lines):
+    for i in range(len(lines)):
+        if i in converged_subjects:
+            continue  
+        
+        sub_out_dir = lines[i].strip()
 
-    print(f'done generating noise matrix for subject {i+1} of {len(lines)}')
+        try:
+            W = create_stable_weighted_matrix(A, threshold=0.001, powers=[2])
+            var_noise = genData(W, rate=u_rate, burnin=burn, ssize=NOISE_SIZE, nstd=nstd)
+            np.save(f'{sub_out_dir}/var_noise.npy', var_noise, allow_pickle=True)
+            print(f'generated noise for {sub_out_dir}')
+            num_converged += 1
+            converged_subjects.append(i)
+            print('plotting components')
+            fig, axes = plt.subplots(10, 6)
+            
+            j = 0
+            for row in range(10):
+                for col in range(6):
+                    if j >= 53:
+                        axes[row,col].axis('off')
+                    else:
+                        axes[row,col].plot(var_noise[j,:])
+                        axes[row,col].axis('off')
+                    j += 1
 
-    # Save the concatenated array as f1f2concat.npy in the same directory
-    try:
-        np.save(f'{sub_out_dir}/var_noise.npy', dd, allow_pickle=True)
-        print(f'noise matrix for subject {i+1} saved to {sub_out_dir}/var_noise.npy')
-    except:
-        print(f'error while saving matrix for dir {sub_out_dir}')
-        continue
+            plt.savefig(f'{sub_out_dir}/noise_comps.png')
+            print('saved fig')
+        
+        except Exception as e:
+            print(f'Convergence error while generating matrix for dir {sub_out_dir}, num converged: {num_converged}')
+            print(e)
+            continue

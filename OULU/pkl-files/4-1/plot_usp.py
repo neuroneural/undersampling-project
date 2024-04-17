@@ -92,19 +92,19 @@ def save_auc_vs_noise_plots_to_pwd(df1, df2, df3, df4):
    # Plot AUC vs noise level for each classifier and sampling rate and save the plots to the current working directory
    for name, group1 in grouped1:
       plt.figure(figsize=(10, 6))  # Adjust size of the plot if needed
-      for idx, (label, data1) in enumerate(group1.groupby('noise_svar')):
+      for idx, (label, data1) in enumerate(group1.groupby('SNR')):
          plt.plot(data1['scalar'], data1['auc'], marker='o', linestyle='-', color='green', label='TR=100ms')
       
       # Add data from df2
-      for idx, (label, data2) in enumerate(grouped2.get_group(name).groupby('noise_svar')):
+      for idx, (label, data2) in enumerate(grouped2.get_group(name).groupby('SNR')):
          plt.plot(data2['scalar'], data2['auc'], marker='s', linestyle='--', color='red', label='TR=2150ms')
 
       # Add data from df3
-      for idx, (label, data3) in enumerate(grouped3.get_group(name).groupby('noise_svar')):
+      for idx, (label, data3) in enumerate(grouped3.get_group(name).groupby('SNR')):
          plt.plot(data3['scalar'], data3['auc'], marker='^', linestyle='-.', color='blue', label='Concat')
       
       # Add data from df4
-      for idx, (label, data4) in enumerate(grouped4.get_group(name).groupby('noise_svar')):
+      for idx, (label, data4) in enumerate(grouped4.get_group(name).groupby('SNR')):
          plt.plot(data4['scalar'], data4['auc'], marker='x', linestyle=':', color='purple', label='Add')
 
       plt.xlabel('Noise Level (Scalar)')

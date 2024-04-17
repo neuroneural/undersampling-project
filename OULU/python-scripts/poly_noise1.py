@@ -8,6 +8,7 @@ import logging
 import scipy.sparse as sp
 import scipy.io
 from scipy.stats import zscore
+import scipy.signal
 
 from scipy.sparse.linalg import eigs
 from gunfolds.utils import graphkit as gk
@@ -91,16 +92,12 @@ nstd = 1.0
 burn = 100
 threshold = 0.0001
 
-SNRs = [2, 1, 0.5, 0.1, 0, -0.1, -0.5, -1, -2]
-scalars = []
-
-
+SNRs = np.linspace(2, -2, 50) #[2, 1, 0.5, 0.1, 0, -0.1, -0.5, -1, -2]
 
 NOISE_SIZE = 2961*2
 NUM_SUBS = 10
 subjects = [20150210, 20150417, 20150428, 20151110, 20151127, 
             20150410, 20150421, 20151030, 20151117, 20151204]
-
 
 
 res1 = []
@@ -126,27 +123,21 @@ for SNR in SNRs:
     with open('/data/users2/jwardell1/undersampling-project/OULU/txt-files/sub_out_dirs.txt', 'r') as file:
         lines = file.readlines()
 
-    while num_converged < len(lines):
-        for i in range(len(lines)):
-            if i in converged_subjects:
-                continue  
-            
-            sub_out_dir = lines[i].strip()
-            try:
-                W = create_stable_weighted_matrix(A, threshold=0.001, powers=[2])
-                var_noise = genData(W, rate=u_rate, burnin=burn, ssize=NOISE_SIZE, nstd=nstd)
-            except Exception as e:
-                print(f'Convergence error while generating matrix for dir {sub_out_dir}, num converged: {num_converged}')
-                print(e)
-                continue
+    for i in range(len(lines)):
+        if i in converged_subjects:
+            continue  
+        
+        sub_out_dir = lines[i].strip()
 
-            # zscore var_noise
-            var_noise = zscore(var_noise, axis=1)
-            var_noise = var_noise * scalar
+        var_noise = np.load(f'{sub_out_dir}/var_noise.npy')
 
-            noises[subjects[i]] = var_noise
-            converged_subjects.append(i)
-            num_converged += 1
+
+        # zscore var_noise
+        var_noise = zscore(var_noise, axis=1)
+        var_noise = var_noise * scalar
+
+        noises[subjects[i]] = var_noise
+
 
 
     tc_sr1 = dict()
@@ -184,6 +175,11 @@ for SNR in SNRs:
         #zscore tc_data
         sr1 = zscore(sr1, axis=1)
         sr2 = zscore(sr2, axis=1)
+
+        sr1 = scipy.signal.detrend(sr1, axis=1)
+        sr2 = scipy.signal.detrend(sr2, axis=1)
+        
+
 
         tc_sr1[subjects[i//2]] = sr1 #TR=100ms
         tc_sr2[subjects[i//2]] = sr2 #TR=2150ms
@@ -279,8 +275,6 @@ for SNR in SNRs:
     groups_add = [entry[2] for entry in windows_add]
     from sklearn.impute import SimpleImputer
 
-    #from sklearn.preprocessing import LabelEncoder
-
 
     # Initialize SimpleImputer
     imputer = SimpleImputer(strategy='mean')
@@ -291,13 +285,6 @@ for SNR in SNRs:
     data_concat = imputer.fit_transform(data_concat)
     data_add = imputer.fit_transform(data_add)
 
-    # Initialize LabelEncoder
-    #label_encoder = LabelEncoder()
-
-    # Encode string labels into numeric values
-    #labels_sr1_encoded = label_encoder.fit_transform(labels_sr1)
-    #labels_sr2_encoded = label_encoder.fit_transform(labels_sr1)
-    #labels_concat_encoded = label_encoder.fit_transform(labels_concat)
 
     # Set a global seed for numpy operations
     np.random.seed(42)
