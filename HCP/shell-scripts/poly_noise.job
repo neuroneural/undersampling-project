@@ -1,16 +1,17 @@
 #!/bin/bash
 #SBATCH -n 1
 #SBATCH -c 32
-#SBATCH --mem=44g
+#SBATCH --mem=64g
 #SBATCH -p qTRD
-#SBATCH --time=20:00:00
-#SBATCH -J polyNoise
+#SBATCH --time=3-00:00:00
+#SBATCH -J pnoiseHCP
 #SBATCH -e /data/users2/jwardell1/undersampling-project/jobs/error%A.err
 #SBATCH -o /data/users2/jwardell1/undersampling-project/jobs/out%A.out
 #SBATCH -A psy53c17
 #SBATCH --mail-type=ALL
 #SBATCH --mail-user=jwardell1@student.gsu.edu
 #SBATCH --oversubscribe
+
 
 
 export PATH=/data/users2/jwardell1/miniconda3/bin:$PATH
@@ -23,4 +24,22 @@ eval "$(${CONDA_PATH} shell.bash hook)"
 conda activate /data/users2/jwardell1/miniconda3/envs/usp
 
 
-python /data/users2/jwardell1/undersampling-project/HCP/python-scripts/poly_noise1.py
+PATHS_FILE=/data/users2/jwardell1/undersampling-project/HCP/txt-files/paths_graphs
+paths_array=($(cat ${PATHS_FILE}))
+
+snr_ix=$(( 3*$SLURM_ARRAY_TASK_ID ))
+snr=${paths_array[${snr_ix}]}
+
+graph_ix=$(( 3*$SLURM_ARRAY_TASK_ID + 1 ))
+graph_filepath=${paths_array[${graph_ix}]}
+
+
+graph_no=$(( 3*$SLURM_ARRAY_TASK_ID + 2 ))
+graph_label=${paths_array[${graph_no}]}
+
+echo "snr: ${snr}"
+echo "graph_filepath: ${graph_filepath}"
+echo "graph_label: ${graph_label}"
+
+
+python /data/users2/jwardell1/undersampling-project/HCP/python-scripts/poly_noise1.py $snr $graph_filepath $graph_no
