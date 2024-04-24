@@ -106,7 +106,7 @@ res2 = []
 res3 = []
 res4 = []
 
-'''
+
 if len(sys.argv) != 4:
     print("Usage: python poly_noise1.py SNR graph_dir graph_ix")
     sys.exit(1)
@@ -119,7 +119,7 @@ g = np.load(graph_dir, allow_pickle=True)
 SNR = 2
 graph_ix = 1000
 g = gk.ringmore(53, 10)
-
+'''
 
 
 scalar = 10**(SNR/-2)
