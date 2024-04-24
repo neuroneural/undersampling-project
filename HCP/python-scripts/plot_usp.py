@@ -320,16 +320,16 @@ def plot_winners(win_df, lower_limit=-2, filename='winners.png'):
    plt.savefig(filename)
 
 
-pkl_dir = '/data/users2/jwardell1/undersampling-project/HCP/pkl-files'
+#pkl_dir = '/data/users2/jwardell1/undersampling-project/HCP/pkl-files'
 
-sr1 = pd.read_pickle(f'{pkl_dir}/sr1.pkl')
-sr2 = pd.read_pickle(f'{pkl_dir}/sr2.pkl')
-concat = pd.read_pickle(f'{pkl_dir}/concat.pkl')
-add = pd.read_pickle(f'{pkl_dir}/add.pkl')
+#sr1 = pd.read_pickle(f'{pkl_dir}/sr1.pkl')
+#sr2 = pd.read_pickle(f'{pkl_dir}/sr2.pkl')
+#concat = pd.read_pickle(f'{pkl_dir}/concat.pkl')
+#add = pd.read_pickle(f'{pkl_dir}/add.pkl')
 
 
-dataframes = [sr1, sr2, concat, add]
-output_dir = "."
+#dataframes = [sr1, sr2, concat, add]
+#output_dir = "."
 #plot_boxplot_for_classifiers(dataframes)
 #plot_accuracy_bars(dataframes, '.', lower_limit=-2)
 
@@ -353,22 +353,80 @@ output_dir = "."
 #plot_winners(win_df, lower_limit=-2, filename='winners_lim.png')
 
 
-sr1_with_auc = calculate_auc_for_classifiers(sr1)
-sr2_with_auc = calculate_auc_for_classifiers(sr2)
-concat_with_auc = calculate_auc_for_classifiers(concat)
-add_with_auc = calculate_auc_for_classifiers(add)
+#sr1_with_auc = calculate_auc_for_classifiers(sr1)
+#sr2_with_auc = calculate_auc_for_classifiers(sr2)
+#concat_with_auc = calculate_auc_for_classifiers(concat)
+#add_with_auc = calculate_auc_for_classifiers(add)
 
 #save_auc_vs_noise_plots_to_pwd(sr1_with_auc, 'SR1')
 #save_auc_vs_noise_plots_to_pwd(sr2_with_auc, 'S2')
 #save_auc_vs_noise_plots_to_pwd(concat_with_auc, 'Concat')
 
-save_auc_vs_noise_plots_to_pwd(sr1_with_auc, sr2_with_auc, concat_with_auc, add_with_auc)#, lower_limit=-0.5)
+#save_auc_vs_noise_plots_to_pwd(sr1_with_auc, sr2_with_auc, concat_with_auc, add_with_auc)#, lower_limit=-0.5)
 
 
 
+import glob
+
+
+pkl_dir = '/data/users2/jwardell1/undersampling-project/HCP/pkl-files'
+joined_files = os.path.join(pkl_dir, 'sr1_*.pkl')
+joined_list = glob.glob(joined_files)
+sr1 = pd.concat(map(pd.read_pickle, joined_list), ignore_index=True)
+
+
+joined_files = os.path.join(pkl_dir, 'sr2_*.pkl')
+joined_list = glob.glob(joined_files)
+sr2 = pd.concat(map(pd.read_pickle, joined_list), ignore_index=True)
+
+joined_files = os.path.join(pkl_dir, 'concat_*.pkl')
+joined_list = glob.glob(joined_files)
+concat = pd.concat(map(pd.read_pickle, joined_list), ignore_index=True)
+
+
+joined_files = os.path.join(pkl_dir, 'add_*.pkl')
+joined_list = glob.glob(joined_files)
+add = pd.concat(map(pd.read_pickle, joined_list), ignore_index=True)
 
 
 
+dataframes = [sr1, sr2, add, concat]
+short = ['MLP','LR','SVM','NB']
+classifiers = ['Multilayer Perceptron', 'Logistic Regression', 'SVM', 'Naive Bayes']
+sampling_rates = ['TR=SR1', 'TR=SR2', 'Concat', 'Add']
+snr_values = sorted([snr for snr in dataframes[0]['snr'].unique()])
 
 
+fig, axs = plt.subplots(1, len(snr_values), figsize=(15, 5), sharey=True, sharex=True)
 
+
+for snr in snr_values:
+    auc_scores = {}
+    ix = 0
+    for df in dataframes:
+        sr = sampling_rates[ix]
+        aucs = {'Multilayer Perceptron' : [], 
+                'Logistic Regression' : [], 
+                'SVM' : [], 
+                'Naive Bayes' : []}
+        for clf in classifiers:
+            df_snr = df[df['snr'] == snr]
+            if not df_snr.empty:
+                clf_data = df_snr[df_snr['classifier'] == clf]
+                aucs[clf].append(clf_data['test_scores'])
+        auc_scores[sr] = aucs
+        print(short)
+        print(auc_scores[sr])
+
+
+        data_group1 =          
+
+        boxes = axs[ix].boxplot([snr]*4, auc_scores[sr], labels=short)
+        axs[ix].set_ylabel('AUC')
+        axs[ix].set_ylim(0, 1)
+
+fig.suptitle(f'SNR vs AUC: {snr}', fontsize=16, y=0.95)
+plt.tight_layout()
+filename = f'AUC_vs_SNR_boxplot.png'
+output_dir='.'
+plt.savefig(os.path.join(output_dir, filename))

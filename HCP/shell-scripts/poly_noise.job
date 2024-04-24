@@ -5,8 +5,8 @@
 #SBATCH -p qTRD
 #SBATCH --time=3-00:00:00
 #SBATCH -J pnoiseHCP
-#SBATCH -e /data/users2/jwardell1/undersampling-project/jobs/error%A.err
-#SBATCH -o /data/users2/jwardell1/undersampling-project/jobs/out%A.out
+#SBATCH -e /data/users2/jwardell1/undersampling-project/jobs/error%A_%a.err
+#SBATCH -o /data/users2/jwardell1/undersampling-project/jobs/out%A_%a.out
 #SBATCH -A psy53c17
 #SBATCH --mail-type=ALL
 #SBATCH --mail-user=jwardell1@student.gsu.edu

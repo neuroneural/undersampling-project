@@ -92,6 +92,7 @@ def genData(A, rate=2, burnin=100, ssize=5000, nstd=1):
 
 
 
+
 if len(sys.argv) != 4:
     print("Usage: python poly_noise1.py SNR graph_dir graph_ix")
     sys.exit(1)
@@ -99,8 +100,11 @@ if len(sys.argv) != 4:
 SNR = float(sys.argv[1])
 graph_dir = sys.argv[2]
 graph_ix = int(sys.argv[3])
+g = np.load(graph_dir, allow_pickle=True)
 
-
+#SNR = 2
+#graph_ix = 1000
+#g = gk.ringmore(53, 10)
 
 
 
@@ -120,7 +124,7 @@ g = np.load(graph_dir, allow_pickle=True)
 
 
 
-num_noise = 100
+num_noise = 5
 num_graphs = 5
 
 
@@ -188,10 +192,6 @@ for noise_ix in range(num_noise):
 
 
     #Load all subject time courses, add noise and perform windowing
-    tc_sr1 = dict()
-    tc_sr2 = dict()
-    tc_sr1_noise = dict()
-    tc_sr2_noise = dict()
     with open('/data/users2/jwardell1/undersampling-project/HCP/txt-files/tc_data.txt', 'r') as tc_data:
         lines = tc_data.readlines()
     
@@ -214,13 +214,15 @@ for noise_ix in range(num_noise):
         if sr1.shape[1] < 1200:
             continue
 
-        logging.info(f'sr1.shape - {sr1.shape}')#convert to logger
+        logging.info(f'sr1.shape - {sr1.shape}')
         sr1 = zscore(sr1, axis=1)
         sr1 = scipy.signal.detrend(sr1, axis=1)
         sr2 = sr1[:,::3]
 
         n_regions = sr1.shape[0]
 
+        subject = subjects[i]
+        var_noise = noises[subject]
 
         fnc_sr1.insert(i, (np.corrcoef(sr1)[np.triu_indices(n_regions)], 0, subjects[i]))
         fnc_sr1.insert(i+1, (np.corrcoef(sr1 + var_noise)[np.triu_indices(n_regions)], 1, subjects[i]))
@@ -229,10 +231,10 @@ for noise_ix in range(num_noise):
         fnc_sr2.insert(i+1, (np.corrcoef(sr2 + var_noise[:,::3])[np.triu_indices(n_regions)], 1, subjects[i]))
 
         fnc_concat.insert(i, (np.concatenate((fnc_sr1[i][0], fnc_sr2[i][0])), 0, subjects[i]))
-        fnc_concat.insert(i, (np.concatenate((fnc_sr1[i+1][0], fnc_sr2[i+1][0])), 1, subjects[i]))
+        fnc_concat.insert(i+1, (np.concatenate((fnc_sr1[i+1][0], fnc_sr2[i+1][0])), 1, subjects[i]))
 
         fnc_add.insert(i, ((fnc_sr1[i][0] + fnc_sr2[i][0]), 0, subjects[i]))
-        fnc_add.insert(i, ((fnc_sr1[i+1][0] + fnc_sr2[i+1][0]), 1, subjects[i]))
+        fnc_add.insert(i+1, ((fnc_sr1[i+1][0] + fnc_sr2[i+1][0]), 1, subjects[i]))
 
 
 
@@ -323,6 +325,7 @@ for noise_ix in range(num_noise):
                         'predictions': np.array(report1.predictions[classifier]).astype(int),
                         'test_proba': report1.test_proba[classifier]})
 
+        logging.info(report1.scores[classifier, 'test'])
     
     for classifier in report2.scores.columns.levels[0]:
         if classifier == 'Voting':
@@ -341,7 +344,7 @@ for noise_ix in range(num_noise):
                     'predictions': np.array(report2.predictions[classifier]).astype(int), 
                     'test_proba': report2.test_proba[classifier]})
 
-
+        logging.info(report2.scores[classifier, 'test'])
     
     for classifier in report3.scores.columns.levels[0]:
         if classifier == 'Voting':
@@ -360,7 +363,7 @@ for noise_ix in range(num_noise):
                     'predictions': np.array(report3.predictions[classifier]).astype(int), 
                     'test_proba': report3.test_proba[classifier]})
         
-
+        logging.info(report3.scores[classifier, 'test'])
     
     for classifier in report4.scores.columns.levels[0]:
         if classifier == 'Voting':
@@ -380,6 +383,7 @@ for noise_ix in range(num_noise):
                     'test_proba': report4.test_proba[classifier]})
 
 
+        logging.info(report4.scores[classifier, 'test'])
 
 #Populate dataframes and save
 df1 = pd.DataFrame(res1)

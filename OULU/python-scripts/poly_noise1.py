@@ -116,13 +116,14 @@ graph_dir = sys.argv[2]
 graph_ix = int(sys.argv[3])
 g = np.load(graph_dir, allow_pickle=True)
 '''
-SNR = 0.85
+SNR = 2
 graph_ix = 1000
 g = gk.ringmore(53, 10)
 
 
 
 scalar = 10**(SNR/-2)
+
 logging.info(f'\t\t\t\tSNR- {SNR}')
 logging.info(f'\t\t\t\tscalar- {scalar}')
 logging.info(f'\t\t\t\tGRAPH IX- {graph_ix}')
@@ -191,8 +192,8 @@ for noise_ix in range(num_noise):
             sr2 = sr1
             sr1 = temp
 
-        logging.info(f'sr1.shape - {sr1.shape}')#convert to logger
-        logging.info(f'sr2.shape - {sr2.shape}')#convert to logger
+        logging.info(f'sr1.shape - {sr1.shape}')
+        logging.info(f'sr2.shape - {sr2.shape}')
 
         #zscore tc_data
         sr1 = zscore(sr1, axis=1)
@@ -337,7 +338,7 @@ for noise_ix in range(num_noise):
                         'predictions': np.array(report1.predictions[classifier]).astype(int),
                         'test_proba': report1.test_proba[classifier]})
 
-
+        logging.info(report1.scores[classifier, 'test'])
 
     scaler2 = MinMaxScaler()#StandardScaler()
     data_scaled2 = scaler2.fit_transform(data_sr2)
@@ -360,6 +361,8 @@ for noise_ix in range(num_noise):
                     'target': report2.target, 
                     'predictions': np.array(report2.predictions[classifier]).astype(int), 
                     'test_proba': report2.test_proba[classifier]})
+        
+        logging.info(report2.scores[classifier, 'test'])
 
     scaler3 = MinMaxScaler()#StandardScaler()
     data_scaled3 = scaler3.fit_transform(data_concat)
@@ -383,6 +386,8 @@ for noise_ix in range(num_noise):
                     'predictions': np.array(report3.predictions[classifier]).astype(int), 
                     'test_proba': report3.test_proba[classifier]})
         
+        logging.info(report3.scores[classifier, 'test'])
+        
     scaler4 = MinMaxScaler()#StandardScaler()
     data_scaled4 = scaler4.fit_transform(data_add)
     report4 = poly_subject(data_scaled4, np.array(labels_add), groups_add, n_folds=10, random_state=random_state,
@@ -405,6 +410,8 @@ for noise_ix in range(num_noise):
                     'predictions': np.array(report4.predictions[classifier]).astype(int), 
                     'test_proba': report4.test_proba[classifier]})
 
+
+        logging.info(report4.scores[classifier, 'test'])
 
 
 #populate dataframe here for combimation of noise
