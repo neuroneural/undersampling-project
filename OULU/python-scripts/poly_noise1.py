@@ -94,9 +94,11 @@ nstd = 1.0
 burn = 100
 threshold = 0.0001
 
+num_graphs = 3
 num_noise = 3
-n_folds = 2
-n_threads=20
+n_folds = 10
+n_threads= 32
+
 
 
 NOISE_SIZE = 2961*2
@@ -109,19 +111,18 @@ res1 = []
 res2 = []
 res3 = []
 res4 = []
-
 '''
 if len(sys.argv) != 4:
     print("Usage: python poly_noise1.py SNR graph_dir graph_ix")
     sys.exit(1)
 
-SNR = float(sys.argv[1])
-graph_dir = sys.argv[2]
-graph_ix = int(sys.argv[3])
-g = np.load(graph_dir, allow_pickle=True)
-'''
+SNR = float(sys.argv[1])                                  # signal to noise ratio
+graph_dir = sys.argv[2]                                   # directory of pre-generated graph
+graph_ix = int(sys.argv[3])                               # graph number
+g = np.load(graph_dir, allow_pickle=True)                 # load graph
 
-SNR = 2                                            # signal to noise ratio
+'''
+SNR = 1                                           
 graph_ix = 1000
 graph_dir = '/data/users2/jwardell1/nshor_docker/examples/oulu-project/OULU/g0.pkl'
 g = np.load(graph_dir, allow_pickle=True)          #= gk.ringmore(53, 10)  #graph from which noise matrix is generated
@@ -129,7 +130,8 @@ g = np.load(graph_dir, allow_pickle=True)          #= gk.ringmore(53, 10)  #grap
 
 
 
-scalar = 10**(SNR/-2)                              # number to multiply noise by for a given SNR
+
+scalar = 10**(SNR/-2)                                     # number to multiply noise by for a given SNR
 
 logging.info(f'\t\t\t\t SNR- {SNR}')
 logging.info(f'\t\t\t\t scalar- {scalar}')
@@ -142,7 +144,7 @@ logging.info(f'\t\t\t\t GRAPH IX- {graph_ix}')
 
 A = graph2adj(g)
 u_rate = 1
-
+logging.info(f'\t\t\t\tGraph Number {graph_ix} of {num_graphs}')
 
 #Using the graphs, generate a number of noise matrices for all subjects until converged
 
@@ -258,8 +260,11 @@ for noise_ix in range(num_noise):                   # run polyssifier for a numb
 
 
         for j in range(n_sections):                                                                                                     # for current sub's data, iterate over all windows "sections" (n_sections) as j
-            window_ix = j*2                                                                                                             # index used for pulling stored sr1&2 windowed data
+            window_ix = i * n_sections * 2 + j * 2                                                                                                             # index used for pulling stored sr1&2 windowed data
             logging.info(f"Processing section {j+1}/{n_sections} for subject {subject_id}")
+            logging.info(f'window_ix {window_ix}')
+            logging.info(f'j {j}')
+
 
             tr100_section = sr1[:, tr100_start_ix:tr100_end_ix]                                                                         # slice current sub's TR=100ms TC from startix to endix across all ICA comps
             tr100_section_noise = sr1_noise[:, tr100_start_ix:tr100_end_ix]                                                             # slice current sub's NOISY TR=100ms TC from startix to endix across all ICA comps     
@@ -279,38 +284,21 @@ for noise_ix in range(num_noise):                   # run polyssifier for a numb
 
 
             windows_concat.append((np.concatenate((windows_sr1[window_ix][0], windows_sr2[window_ix][0])),      # concat both triu entries
-                                   windows_sr1[window_ix][1],                                                   # get label of sr1&2 window
-                                   windows_sr1[window_ix][2]))                                                  # get subid of sr1&2 window
+                                   0,                                                                           # get label of sr1&2 window
+                                   subject_id))                                                                 # get subid of sr1&2 window
             
             windows_concat.append((np.concatenate((windows_sr1[window_ix+1][0], windows_sr2[window_ix+1][0])), # concat both noisy triu entries
-                                   windows_sr1[window_ix+1][1],                                                # get label of sr1&2 window
-                                   windows_sr1[window_ix+1][2]))                                               # get subid of sr1&2 window
+                                   1,                                                                          # get label of sr1&2 window
+                                   subject_id))                                                                # get subid of sr1&2 window
             
-            windows_add.append((windows_sr1[window_ix][0]+windows_sr2[window_ix][0],                           # sum features of both triu entries
-                                windows_sr1[window_ix][1],                                                     # get label of sr1&2 window
-                                windows_sr1[window_ix][2]))                                                    # get subid of sr1&2 window
+            windows_add.append((windows_sr1[window_ix][0] + windows_sr2[window_ix][0],                         # sum features of both triu entries
+                                   0,                                                                          # get label of sr1&2 window
+                                   subject_id))                                                                # get subid of sr1&2 window
                                              
-            windows_add.append((windows_sr1[window_ix+1][0]+windows_sr2[window_ix+1][0],                       # sum features of noisy both triu entries
-                                windows_sr1[window_ix+1][1],                                                   # get label of sr1&2 window
-                                windows_sr1[window_ix+1][2]))                                                  # get subid of sr1&2 window
-            
-            
-            assert windows_sr1[window_ix][1] == windows_sr2[window_ix][1] \
-                == windows_concat[window_ix][1] == windows_add[window_ix][1], 'label ids must match at current window'
-            
-            assert windows_sr1[window_ix][2] == windows_sr2[window_ix][2] \
-                 == windows_concat[window_ix][2] == windows_add[window_ix][2] , 'subject must match at current window'
-            
-            assert (windows_sr1[window_ix][2] == windows_sr1[window_ix+1][2]) \
-                and (windows_sr2[window_ix][2] == windows_sr2[window_ix+1][2]) \
-                and (windows_concat[window_ix][2] == windows_concat[window_ix+1][2]) \
-                and (windows_add[window_ix][2] == windows_add[window_ix+1][2]), 'subject ids should match at window_ix and window_ix+1'
-            
-            assert ((windows_sr1[window_ix][1] == 0) and (windows_sr1[window_ix+1][1] == 1))  \
-                and ((windows_sr2[window_ix][1] == 0) and (windows_sr2[window_ix+1][1] == 1)) \
-                and ((windows_concat[window_ix][1] == 0) and (windows_concat[window_ix+1][1] == 1)) \
-                and ((windows_add[window_ix][1] == 0) and (windows_add[window_ix+1][1] == 1)), 'labels should be 0 and 1 for none and noise'
-
+            windows_add.append((windows_sr1[window_ix+1][0] + windows_sr2[window_ix+1][0],                     # sum features of noisy both triu entries
+                                   1,                                                                          # get label of sr1&2 window
+                                   subject_id))                                                                # get subid of sr1&2 window
+                
             tr100_start_ix += tr100_stride                                                                                              # update sr1 start ix by adding stride length
             tr100_end_ix = tr100_end_ix + tr100_stride                                                                                  # update sr1 end ix by adding stride length to prev end ix
                 
@@ -373,7 +361,7 @@ for noise_ix in range(num_noise):                   # run polyssifier for a numb
     scaler1 = MinMaxScaler()#StandardScaler()
     data_scaled1 = scaler1.fit_transform(data_sr1)
     report1 = poly(data=data_scaled1, label=np.array(labels_sr1), groups=groups_sr1, n_folds=n_folds, random_state=random_state,                               # run polyssifier on SR1 noise vs none data, labels, and groups
-                            project_name=f'SR1_noise_{scalar}', scale=True, concurrency=n_threads,
+                            project_name=f'SR1_noise_{scalar}', scale=False, concurrency=n_threads, save=False,
                             exclude=['Decision Tree', 'Random Forest', 'Voting', 'Nearest Neighbors', 'Linear SVM'],  scoring='auc')
     
     
@@ -403,7 +391,7 @@ for noise_ix in range(num_noise):                   # run polyssifier for a numb
     scaler2 = MinMaxScaler()#StandardScaler()
     data_scaled2 = scaler2.fit_transform(data_sr2)
     report2 = poly(data=data_scaled2, label=np.array(labels_sr2), groups=groups_sr2, n_folds=n_folds, random_state=random_state,                              # run polyssifier on SR2 noise vs none data, labels, and groups
-                            project_name=f'SR2_noise_{scalar}', scale=True, concurrency=n_threads,
+                            project_name=f'SR2_noise_{scalar}', scale=False, concurrency=n_threads, save=False,
                             exclude=['Decision Tree', 'Random Forest', 'Voting', 'Nearest Neighbors', 'Linear SVM'],  scoring='auc')
     
     
@@ -434,7 +422,7 @@ for noise_ix in range(num_noise):                   # run polyssifier for a numb
     scaler3 = MinMaxScaler()#StandardScaler()
     data_scaled3 = scaler3.fit_transform(data_concat)
     report3 = poly(data=data_scaled3, label=np.array(labels_concat), groups=groups_concat, n_folds=n_folds, random_state=random_state,                      # run polyssifier on CONCAT noise vs none data, labels, and groups
-                            project_name=f'CONCAT_noise_{scalar}', scale=True, concurrency=n_threads,
+                            project_name=f'CONCAT_noise_{scalar}', scale=False, concurrency=n_threads, save=False,
                             exclude=['Decision Tree', 'Random Forest', 'Voting', 'Nearest Neighbors', 'Linear SVM'],  scoring='auc')
     
     
@@ -466,7 +454,7 @@ for noise_ix in range(num_noise):                   # run polyssifier for a numb
     scaler4 = MinMaxScaler()#StandardScaler()
     data_scaled4 = scaler4.fit_transform(data_add)
     report4 = poly(data=data_scaled4, label=np.array(labels_add), groups=groups_add, n_folds=n_folds, random_state=random_state,                          # run polyssifier on ADD noise vs none data, labels, and groups
-                        project_name=f'ADD_noise_{scalar}', scale=True, concurrency=n_threads,
+                        project_name=f'ADD_noise_{scalar}', scale=False, concurrency=n_threads, save=False,
                         exclude=['Decision Tree', 'Random Forest', 'Voting', 'Nearest Neighbors', 'Linear SVM'],  scoring='auc')
     
 
@@ -496,6 +484,9 @@ df1 = pd.DataFrame(res1)                                                        
 df2 = pd.DataFrame(res2)                                                                                    # save SR2 results as dataframe
 df3 = pd.DataFrame(res3)                                                                                    # save CONCAT results as dataframe
 df4 = pd.DataFrame(res4)                                                                                    # save ADD results as dataframe
+
+
+
 df1.to_pickle(f'/data/users2/jwardell1/undersampling-project/OULU/pkl-files/sr1_{SNR}_{graph_ix}.pkl')      # write SR1 dataframe to disk as pickle
 df2.to_pickle(f'/data/users2/jwardell1/undersampling-project/OULU/pkl-files/sr2_{SNR}_{graph_ix}.pkl')      # write SR2 dataframe to disk as pickle
 df3.to_pickle(f'/data/users2/jwardell1/undersampling-project/OULU/pkl-files/concat_{SNR}_{graph_ix}.pkl')   # write CONCAT dataframe to disk as pickle

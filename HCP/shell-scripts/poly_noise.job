@@ -1,10 +1,10 @@
 #!/bin/bash
 #SBATCH -n 1
-#SBATCH -c 24
-#SBATCH --mem=64g
+#SBATCH -c 10
+#SBATCH --mem=32g
 #SBATCH -p qTRD
 #SBATCH --time=3-00:00:00
-#SBATCH -J pnoiseHCP
+#SBATCH -J pnhcp
 #SBATCH -e /data/users2/jwardell1/undersampling-project/jobs/error%A_%a.err
 #SBATCH -o /data/users2/jwardell1/undersampling-project/jobs/out%A_%a.out
 #SBATCH -A psy53c17

@@ -3,3 +3,4 @@
 *.log
 jobs/
 *.pkl
+poly_*/

@@ -7,7 +7,7 @@ PATHS_FILE=/data/users2/jwardell1/undersampling-project/HCP/txt-files/paths_grap
 
 for SNR in 0.5 0.6 0.7 0.8 0.9 1.0 
 do
-	for ((i=0; i<5; i++))
+	for ((i=0; i<3; i++))
 	do
 		echo "$SNR" >> $PATHS_FILE
 		echo "/data/users2/jwardell1/nshor_docker/examples/hcp-project/HCP/g${i}.pkl" >> $PATHS_FILE

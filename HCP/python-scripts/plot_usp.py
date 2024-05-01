@@ -297,7 +297,7 @@ def plot_accuracy_bars(dataframes, output_dir, lower_limit=0):
     print(num_wins_per_sr)
 
 
-
+"""
 def plot_winners(win_df, lower_limit=-2, filename='winners.png'):
    win_df_filtered = win_df[win_df['Lower Limit'] >= lower_limit]
    # Define sampling rates
@@ -318,6 +318,41 @@ def plot_winners(win_df, lower_limit=-2, filename='winners.png'):
    plt.legend()
    plt.grid(True)
    plt.savefig(filename)
+"""
+
+   
+
+import os
+import glob
+import pandas as pd
+
+#pkl_dir = '/data/users2/jwardell1/undersampling-project/HCP/pkl-files'
+pkl_dir = '/data/users2/jwardell1/undersampling-project/OULU/pkl-files'
+
+# Read and concatenate sr1 data
+joined_files = os.path.join(pkl_dir, 'sr1_*.pkl')
+joined_list = glob.glob(joined_files)
+sr1 = pd.concat((pd.read_pickle(file).assign(sampling_rate='sr1') for file in joined_list), ignore_index=True)
+
+# Read and concatenate sr2 data
+joined_files = os.path.join(pkl_dir, 'sr2_*.pkl')
+joined_list = glob.glob(joined_files)
+sr2 = pd.concat((pd.read_pickle(file).assign(sampling_rate='sr2') for file in joined_list), ignore_index=True)
+
+# Read and concatenate concat data
+joined_files = os.path.join(pkl_dir, 'concat_*.pkl')
+joined_list = glob.glob(joined_files)
+concat = pd.concat((pd.read_pickle(file).assign(sampling_rate='concat') for file in joined_list), ignore_index=True)
+
+# Read and concatenate add data
+joined_files = os.path.join(pkl_dir, 'add_*.pkl')
+joined_list = glob.glob(joined_files)
+add = pd.concat((pd.read_pickle(file).assign(sampling_rate='add') for file in joined_list), ignore_index=True)
+
+# Concatenate all dataframes
+all_data = pd.concat([sr1, sr2, concat, add], ignore_index=True)
+
+
 
 
 #pkl_dir = '/data/users2/jwardell1/undersampling-project/HCP/pkl-files'
@@ -353,43 +388,25 @@ def plot_winners(win_df, lower_limit=-2, filename='winners.png'):
 #plot_winners(win_df, lower_limit=-2, filename='winners_lim.png')
 
 
-#sr1_with_auc = calculate_auc_for_classifiers(sr1)
-#sr2_with_auc = calculate_auc_for_classifiers(sr2)
-#concat_with_auc = calculate_auc_for_classifiers(concat)
-#add_with_auc = calculate_auc_for_classifiers(add)
+sr1_with_auc = calculate_auc_for_classifiers(sr1)
+sr2_with_auc = calculate_auc_for_classifiers(sr2)
+concat_with_auc = calculate_auc_for_classifiers(concat)
+add_with_auc = calculate_auc_for_classifiers(add)
+
+mlp_df_with_auc = calculate_auc_for_classifiers(mlp_df)
+lr_df_with_auc = calculate_auc_for_classifiers(lr_df)
+svm_df_with_auc = calculate_auc_for_classifiers(svm_df)
+nb_df_with_auc = calculate_auc_for_classifiers(nb_df)
+
 
 #save_auc_vs_noise_plots_to_pwd(sr1_with_auc, 'SR1')
 #save_auc_vs_noise_plots_to_pwd(sr2_with_auc, 'S2')
 #save_auc_vs_noise_plots_to_pwd(concat_with_auc, 'Concat')
 
-#save_auc_vs_noise_plots_to_pwd(sr1_with_auc, sr2_with_auc, concat_with_auc, add_with_auc)#, lower_limit=-0.5)
+save_auc_vs_noise_plots_to_pwd(sr1_with_auc, sr2_with_auc, concat_with_auc, add_with_auc)#, lower_limit=-0.5)
 
 
-
-import glob
-
-
-pkl_dir = '/data/users2/jwardell1/undersampling-project/HCP/pkl-files'
-joined_files = os.path.join(pkl_dir, 'sr1_*.pkl')
-joined_list = glob.glob(joined_files)
-sr1 = pd.concat(map(pd.read_pickle, joined_list), ignore_index=True)
-
-
-joined_files = os.path.join(pkl_dir, 'sr2_*.pkl')
-joined_list = glob.glob(joined_files)
-sr2 = pd.concat(map(pd.read_pickle, joined_list), ignore_index=True)
-
-joined_files = os.path.join(pkl_dir, 'concat_*.pkl')
-joined_list = glob.glob(joined_files)
-concat = pd.concat(map(pd.read_pickle, joined_list), ignore_index=True)
-
-
-joined_files = os.path.join(pkl_dir, 'add_*.pkl')
-joined_list = glob.glob(joined_files)
-add = pd.concat(map(pd.read_pickle, joined_list), ignore_index=True)
-
-
-
+"""
 dataframes = [sr1, sr2, add, concat]
 short = ['MLP','LR','SVM','NB']
 classifiers = ['Multilayer Perceptron', 'Logistic Regression', 'SVM', 'Naive Bayes']
@@ -430,3 +447,4 @@ plt.tight_layout()
 filename = f'AUC_vs_SNR_boxplot.png'
 output_dir='.'
 plt.savefig(os.path.join(output_dir, filename))
+"""

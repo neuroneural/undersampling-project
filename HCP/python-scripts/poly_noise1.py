@@ -92,7 +92,7 @@ def genData(A, rate=2, burnin=100, ssize=5000, nstd=1):
 
 
 
-
+"""
 if len(sys.argv) != 4:
     print("Usage: python poly_noise1.py SNR graph_dir graph_ix")
     sys.exit(1)
@@ -101,18 +101,13 @@ SNR = float(sys.argv[1])
 graph_dir = sys.argv[2]
 graph_ix = int(sys.argv[3])
 g = np.load(graph_dir, allow_pickle=True)
+"""
+SNR = 1
+graph_ix = 1000
+graph_dir = '/data/users2/jwardell1/nshor_docker/examples/oulu-project/OULU/g0.pkl'
+g = np.load(graph_dir, allow_pickle=True)#= gk.ringmore(53, 10)
 
-#SNR = 2
-#graph_ix = 1000
-#g = gk.ringmore(53, 10)
 
-
-
-
-scalar = 10**(SNR/-2)
-logging.info(f'\t\t\t\tSNR- {SNR}')
-logging.info(f'\t\t\t\tscalar- {scalar}')
-logging.info(f'\t\t\t\tGRAPH IX- {graph_ix}')
 
 num_converged = 0
 noises = dict()
@@ -123,9 +118,10 @@ converged_subjects = []
 g = np.load(graph_dir, allow_pickle=True)
 
 
-
-num_noise = 5
-num_graphs = 5
+num_graphs = 3
+num_noise = 1
+n_folds = 2
+n_threads= 8
 
 
 nstd = 1.0
@@ -135,6 +131,8 @@ NOISE_SIZE = 1200
 
 
 subjects = np.loadtxt("/data/users2/jwardell1/undersampling-project/HCP/txt-files/subjects.txt", dtype=str)
+#subjects = np.loadtxt("/data/users2/jwardell1/undersampling-project/HCP/txt-files/subjects_dbg.txt", dtype=str)
+
 
 noises = dict()
 
@@ -151,27 +149,28 @@ res4 = []
 
 
 
-
 scalar = 10**(SNR/-2)
+
 logging.info(f'\t\t\t\tSNR- {SNR}')
 logging.info(f'\t\t\t\tscalar- {scalar}')
+logging.info(f'\t\t\t\tGRAPH IX- {graph_ix}')
 
 
-num_converged = 0
-noises = dict()
-converged_subjects = []
 
 
 
 
 A = graph2adj(g)
 u_rate = 1
-logging.info(f'\t\t\t\tGraph Number {graph_ix+1} of {num_graphs}')
+logging.info(f'\t\t\t\tGraph Number {graph_ix} of {num_graphs}')
 
 #Using the loaded graph, generate a number of noise matrices for all subjects until converged
 for noise_ix in range(num_noise):
+    num_converged = 0
+    noises = dict()
+    converged_subjects = []
     while num_converged < len(subjects):
-        for subject in range(len(subjects)):
+        for subject in subjects:
             if subject in converged_subjects:
                 continue  
 
@@ -180,12 +179,12 @@ for noise_ix in range(num_noise):
                 W = create_stable_weighted_matrix(A, threshold=0.001, powers=[2])
                 var_noise = genData(W, rate=u_rate, burnin=burn, ssize=NOISE_SIZE, nstd=nstd)
                 var_noise = zscore(var_noise, axis=1)
-                noises[subjects[subject]] = var_noise*scalar
+                noises[subject] = var_noise*scalar
                 num_converged += 1
                 converged_subjects.append(subject)
             
             except Exception as e:
-                print(f'Convergence error while generating matrix for dir {subjects[subject]}, num converged: {num_converged}')
+                print(f'Convergence error while generating matrix for dir {subject}, num converged: {num_converged}')
                 print(e)
                 continue
         
@@ -193,6 +192,7 @@ for noise_ix in range(num_noise):
 
     #Load all subject time courses, add noise and perform windowing
     with open('/data/users2/jwardell1/undersampling-project/HCP/txt-files/tc_data.txt', 'r') as tc_data:
+    #with open('/data/users2/jwardell1/undersampling-project/HCP/txt-files/tc_data_dbg.txt', 'r') as tc_data:
         lines = tc_data.readlines()
     
     fnc_sr1 = []
@@ -208,6 +208,9 @@ for noise_ix in range(num_noise):
         except:
             continue
 
+        
+        
+
         if sr1.shape[0] != 53:
             sr1 = sr1.T
 
@@ -218,23 +221,30 @@ for noise_ix in range(num_noise):
         sr1 = zscore(sr1, axis=1)
         sr1 = scipy.signal.detrend(sr1, axis=1)
         sr2 = sr1[:,::3]
+        logging.info(f'sr2.shape - {sr2.shape}')
+
 
         n_regions = sr1.shape[0]
 
-        subject = subjects[i]
-        var_noise = noises[subject]
+        subject_id = file_path_sr1.split('/')[-3]
+        var_noise = noises[subject_id]
 
-        fnc_sr1.insert(i, (np.corrcoef(sr1)[np.triu_indices(n_regions)], 0, subjects[i]))
-        fnc_sr1.insert(i+1, (np.corrcoef(sr1 + var_noise)[np.triu_indices(n_regions)], 1, subjects[i]))
+        fnc_sr1.append((np.corrcoef(sr1)[np.triu_indices(n_regions)], 0, subject_id))
+        fnc_sr1.append((np.corrcoef(sr1 + var_noise)[np.triu_indices(n_regions)], 1, subject_id))
 
-        fnc_sr2.insert(i, (np.corrcoef(sr2)[np.triu_indices(n_regions)], 0, subjects[i]))
-        fnc_sr2.insert(i+1, (np.corrcoef(sr2 + var_noise[:,::3])[np.triu_indices(n_regions)], 1, subjects[i]))
+        fnc_sr2.append((np.corrcoef(sr2)[np.triu_indices(n_regions)], 0, subject_id))
+        fnc_sr2.append((np.corrcoef(sr2 + var_noise[:,::3])[np.triu_indices(n_regions)], 1, subject_id))
 
-        fnc_concat.insert(i, (np.concatenate((fnc_sr1[i][0], fnc_sr2[i][0])), 0, subjects[i]))
-        fnc_concat.insert(i+1, (np.concatenate((fnc_sr1[i+1][0], fnc_sr2[i+1][0])), 1, subjects[i]))
+        window_ix = len(fnc_sr1)-2
+        logging.info(f'window_ix {window_ix}')
+        logging.info(f'len(fnc_sr1) {len(fnc_sr1)}')
+        logging.info(f'len(fnc_sr2) {len(fnc_sr2)}')
 
-        fnc_add.insert(i, ((fnc_sr1[i][0] + fnc_sr2[i][0]), 0, subjects[i]))
-        fnc_add.insert(i+1, ((fnc_sr1[i+1][0] + fnc_sr2[i+1][0]), 1, subjects[i]))
+        fnc_concat.append((np.concatenate((fnc_sr1[window_ix][0], fnc_sr2[window_ix][0])), 0, subject_id))
+        fnc_concat.append((np.concatenate((fnc_sr1[window_ix+1][0], fnc_sr2[window_ix+1][0])), 1, subject_id))
+
+        fnc_add.append(((fnc_sr1[window_ix][0] + fnc_sr2[window_ix][0]), 0, subject_id))
+        fnc_add.append(((fnc_sr1[window_ix+1][0] + fnc_sr2[window_ix+1][0]), 1, subject_id))
 
 
 
