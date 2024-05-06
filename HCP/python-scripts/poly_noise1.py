@@ -92,7 +92,7 @@ def genData(A, rate=2, burnin=100, ssize=5000, nstd=1):
 
 
 
-"""
+
 if len(sys.argv) != 4:
     print("Usage: python poly_noise1.py SNR graph_dir graph_ix")
     sys.exit(1)
@@ -106,7 +106,7 @@ SNR = 1
 graph_ix = 1000
 graph_dir = '/data/users2/jwardell1/nshor_docker/examples/oulu-project/OULU/g0.pkl'
 g = np.load(graph_dir, allow_pickle=True)#= gk.ringmore(53, 10)
-
+"""
 
 
 num_converged = 0
@@ -119,9 +119,9 @@ g = np.load(graph_dir, allow_pickle=True)
 
 
 num_graphs = 3
-num_noise = 1
-n_folds = 2
-n_threads= 8
+num_noise = 3
+n_folds = 4
+n_threads= 16
 
 
 nstd = 1.0
