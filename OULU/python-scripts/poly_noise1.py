@@ -1,3 +1,10 @@
+
+import statsmodels.api as sm
+import pandas as pd
+import numpy as np
+from sklearn.model_selection import StratifiedGroupKFold
+
+
 import numpy as np
 import pandas as pd
 import sys
@@ -9,7 +16,7 @@ import logging
 import scipy.sparse as sp
 import scipy.io
 from scipy.stats import zscore
-import scipy.signal
+from scipy.signal import detrend
 
 from scipy.sparse.linalg import eigs
 from gunfolds.utils import graphkit as gk
@@ -22,6 +29,8 @@ from sklearn.utils import check_random_state
 from sklearn.impute import SimpleImputer
 
 
+from sklearn.neural_network import MLPClassifier
+from sklearn.metrics import roc_auc_score
 def check_matrix_powers(W, A, powers, threshold):
     for n in powers:
         W_n = np.linalg.matrix_power(W, n)
@@ -86,31 +95,7 @@ def genData(A, rate=2, burnin=100, ssize=5000, nstd=0.1):
     return data[:, ::rate]
 
 
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
-
-
-#Step 0: Iterate through values for nstd, burnin, noise_svar
-nstd = 1.0
-burn = 100
-threshold = 0.0001
-
-num_graphs = 1
-num_noise = 1
-n_folds = 3
-n_threads= 12
-
-
-
-NOISE_SIZE = 2961*2
-NUM_SUBS = 10
-subjects = [20150210, 20150417, 20150428, 20151110, 20151127, 
-            20150410, 20150421, 20151030, 20151117, 20151204]
-
-res1 = []
-res2 = []
-res3 = []
-res4 = []
-'''
+"""
 if len(sys.argv) != 4:
     print("Usage: python poly_noise1.py SNR graph_dir graph_ix")
     sys.exit(1)
@@ -118,384 +103,373 @@ if len(sys.argv) != 4:
 SNR = float(sys.argv[1])                                  # signal to noise ratio
 graph_dir = sys.argv[2]                                   # directory of pre-generated graph
 graph_ix = int(sys.argv[3])                               # graph number
-g = np.load(graph_dir, allow_pickle=True)                 # load graph
 
-'''
-
-#SNR = 1                                           
+"""
+SNRs = [0.5, 0.6, 0.7, 0.8, 0.9, 1.0]
 graph_ix = 1002
 graph_dir = '/data/users2/jwardell1/nshor_docker/examples/oulu-project/OULU/g4.pkl'
-g = np.load(graph_dir, allow_pickle=True)          #= gk.ringmore(53, 10)  #graph from which noise matrix is generated
 
 
 
-
-
-
-
-
-logging.info(f'\t\t\t\t GRAPH IX- {graph_ix}')
-
-
-
-
-
-
+g = np.load(graph_dir, allow_pickle=True)
 A = graph2adj(g)
 u_rate = 1
+
+
+
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+
+
+nstd = 1.0
+burn = 100
+threshold = 0.0001
+
+NOISE_SIZE = 2961*2
+NUM_SUBS = 10
+subjects = ['20150210', '20150417', '20150428', '20151110', '20151127', 
+            '20150410', '20150421', '20151030', '20151117', '20151204']
+
+num_graphs = 1
+num_noise = 1
+n_folds = 4
+n_threads= 16
+
 logging.info(f'\t\t\t\tGraph Number {graph_ix} of {num_graphs}')
 
-#Using the graphs, generate a number of noise matrices for all subjects until converged
-
-SNRs  = [0.5, 0.6, 0.7, 0.8, 0.9, 1.0]
-for SNR in SNRs:
-    scalar = 10**(SNR/-2)                                     # number to multiply noise by for a given SNR
-    logging.info(f'\t\t\t\t SNR- {SNR}')
-    logging.info(f'\t\t\t\t scalar- {scalar}')
-    for noise_ix in range(num_noise):                   # run polyssifier for a number of noise samples
-        logging.info(f'\t\t\t\t NOISE IX- {noise_ix}')
-        num_converged = 0                               # counter for how many subjects' noise matrices have converged
-        noises = dict()                                 # dict for noises.  key: sub_id , value: sub's noise matrix
-        converged_subjects = []                         # holds IDs of converged subjects
-
-        while num_converged < len(subjects):            # iterate until all subjects are converged
-            for subject in subjects:                    # iterate through all subjects
-                if subject in converged_subjects:       # skip converged subjects
-                    continue  
+for noise_ix in range(num_noise):
+    scalar = 10**(SNR/-2)
+    logging.info(f'\t\t\t\tSNR {SNR}')
+    logging.info(f'\t\t\t\tscalar {scalar}')
 
 
-                try:                                                                                        # try to generate a noise sample
-                    W = create_stable_weighted_matrix(A, threshold=threshold, powers=[2])                   # use the ringmore graph to get a matrix W
-                    var_noise = genData(W, rate=u_rate, burnin=burn, ssize=NOISE_SIZE, nstd=nstd)           # use W to generate the noise sample
-                    var_noise = zscore(var_noise, axis=1)                                                   # z-score the noise
-                    noises[subject] = var_noise*scalar                                                      # scale the noise to the SNR and store in the noises dict. key: subid , value: noisemat
-                    num_converged += 1                                                                      # increment the num_converged counter
-                    converged_subjects.append(subject)                                                      # add the sub id to the list of converged subs
-                
-                except Exception as e:                                                                      # catch convergence exception
-                    print(f'Convergence error while generating matrix for dir {subject}, num converged: {num_converged}')
-                    print(e)
-                    continue
-            
+    num_converged = 0
+    converged_subjects = []
+    noises = dict()
+    while num_converged < NUM_SUBS:
+        for subject in subjects:
+            if subject in converged_subjects:
+                continue
 
-
-        tc_sr1 = dict()         # dict for time courses                 key: subid , value: sub's TR=100ms timecourse
-        tc_sr2 = dict()         # dict for time courses                 key: subid , value: sub's TR=2150ms timecourse
-        tc_sr1_noise = dict()   # dict for noise corrupted timecourses  key: subid , value: sub's noisy TR=100ms timecourse
-        tc_sr2_noise = dict()   # dict for noise corrupted timecourses  key: subid , value: sub's noisy TR=2150ms timecourse
-        with open('/data/users2/jwardell1/undersampling-project/OULU/txt-files/allsubs_TCs.txt', 'r') as tc_data:
-            lines = tc_data.readlines()
-
-        for i in range(0, len(lines), 2):                     # iterate over every sub's two timecourse files (load TCs, zscore, detrend, add noise, & save)
-            subject = subjects[i//2]
-            logging.info(f'subject {subject}')
-            file_path_sr1 = lines[i].strip()                  # get first tc filepath
-            file_path_sr2 = lines[i + 1].strip()              # get second tc filepath
-            logging.info(f'Processing SR1: {file_path_sr1}')  
-            logging.info(f'Processing SR2: {file_path_sr2}')
             try:
-                sr1 = scipy.io.loadmat(file_path_sr1)['TCMax'] # load first timecourse
-                sr2 = scipy.io.loadmat(file_path_sr2)['TCMax'] # load second timecourse
-            except:
-                continue
+                W = create_stable_weighted_matrix(A, threshold=threshold, powers=[2])
+                var_noise = genData(W, rate=u_rate, burnin=burn, ssize=NOISE_SIZE, nstd=nstd)
+                var_noise = zscore(var_noise, axis=1)
+                noises[subject] = var_noise*scalar
+                num_converged += 1
+                converged_subjects.append(subject)
 
-            if sr1.shape[0] != 53:           # make first tc dimensions #comp by #timepoints
-                sr1 = sr1.T
-
-            if sr2.shape[0] != 53:           # make second tc dimensions #comp by #timepoints
-                sr2 = sr2.T
-
-            if sr1.shape[1] < sr2.shape[1]:  # make sr1 TR=100ms and sr2 TR=2150ms
-                temp = sr2
-                sr2 = sr1
-                sr1 = temp
-
-            logging.debug(f'sr1.shape - {sr1.shape}')
-            logging.debug(f'sr2.shape - {sr2.shape}')
-
-            #zscore tc_data
-            sr1_zs = zscore(sr1, axis=1)                                    # zscore TR=100ms timecourse
-            sr2_zs = zscore(sr2, axis=1)                                    # zscore TR=2150ms timecourse
-
-            sr1_zs_dt = scipy.signal.detrend(sr1_zs, axis=1)                # apply linear detrending on TR=100ms  timecourse
-            sr2_zs_dt = scipy.signal.detrend(sr2_zs, axis=1)                # apply linear detrending on TR=2150ms timecourse
-            
-            var_noise = noises[subjects[i//2]]                              # load the noise matrix for current sub from noises dict
-
-            tc_sr1[subject] = sr1_zs_dt                              # save the sub's zscored, detrended TR=100ms  TC to sr1 TCs dict
-            tc_sr2[subject] = sr2_zs_dt                              # save the sub's zscored, detrended TR=2150ms TC to sr2 TCs dict
-
-            tc_sr1_noise[subject] = sr1_zs_dt + var_noise[:,::2]     # sample from sub's noise matrix, add noise to TR=100ms  TC, & save to sr1 noisy TCs dict
-            tc_sr2_noise[subject] = sr2_zs_dt + var_noise[:,::33]    # sample from sub's noise matrix, add noise to TR=2150ms TC, & save to sr2 noisy TCs dict
+            except Exception as e:
+                print(e)
+                logging.info(f'num converged: {num_converged}')
 
 
 
 
-        windows_sr1 = []                            # list to hold windowed TR=100ms  TC data for all subjects      -> 3-tuple (window FNC triu entries, sub id, label 0: no noise, 1: noise)
-        windows_sr2 = []                            # list to hold windowed TR=2150ms TC data for all subjects      -> 3-tuple (window FNC triu entries, sub id, label 0: no noise, 1: noise)
-        windows_concat = []                         # list to hold concatenated windowed TC data for all subjects   -> 3-tuple (window FNC triu entries, sub id, label 0: no noise, 1: noise)
-        windows_add = []                            # list to hold added windowed TC data for all subjects          -> 3-tuple (window FNC triu entries, sub id, label 0: no noise, 1: noise)
+    all_data = []
 
+    with open('/data/users2/jwardell1/undersampling-project/OULU/txt-files/allsubs_TCs.txt', 'r') as tc_data:
+        lines = tc_data.readlines()
+
+    for i in range(0, len(lines), 2):
+        subject = subjects[i//2]
+        logging.info(f'loading TC for subject {subject}')
+        filepath_sr1 = lines[i].strip()
+        filepath_sr2 = lines[i+1].strip()
+        try:
+            sr1 = scipy.io.loadmat(filepath_sr1)['TCMax']
+            sr2 = scipy.io.loadmat(filepath_sr2)['TCMax']
         
-        for i in range(NUM_SUBS):                                                       # iterate over all subjects to load a sub's TCs (noise/none)
-            subject_id = subjects[i]                                                    # set current subid
-            if subject_id == '': 
-                continue
+        except:
+            continue
 
-            sr1 = tc_sr1[subject_id]                                                    # load current sub's TR=100ms  TC from dict
-            sr1_noise = tc_sr1_noise[subject_id]                                        # load current sub's noisy TR=100ms  TC from dict
+        if sr1.shape[0] != 53:
+            sr1 = sr1.T
+
+        if sr2.shape[0] != 53:
+            sr2 = sr2.T
+        
+        if sr1.shape[1] < sr2.shape[1]:
+            tr100_tc = sr2
+            tr2150_tc = sr1
+        else:
+            tr100_tc = sr1
+            tr2150_tc = sr2
+
+        logging.info(f'subject {subject} tr100_tc.shape - {tr100_tc.shape}')
+        logging.info(f'subject {subject} tr2150_tc.shape - {tr2150_tc.shape}')
+
+        tr100_tc_zs = zscore(tr100_tc, axis=1)
+        tr2150_tc_zs = zscore(tr2150_tc, axis=1)
+
+        tr100_tc_zs_dt = detrend(tr100_tc_zs, axis=1)
+        tr2150_tc_zs_dt = detrend(tr2150_tc_zs, axis=1)
+
+        noise_tr100 = noises[subject][:,::2]/2 #####DEBUG TODO: check later
+        noise_tr2150 = noises[subject][:,::33]
+
+        tr100_tc_zs_dt_noise = tr100_tc_zs_dt+noise_tr100
+        tr2150_tc_zs_dt_noise = tr2150_tc_zs_dt+noise_tr2150
+
+        all_data.append({'Subject_ID'             : str(subject), 
+                        'VAR_Noise'               : noises[subject], 
+                        'TR100_Noise'             : noise_tr100, 
+                        'TR2150_Noise'            : noise_tr2150, 
+                        'TR100_Timecourse'        : tr100_tc_zs_dt, 
+                        'TR2150_Timecourse'       : tr2150_tc_zs_dt, 
+                        'TR100_Timecourse_Noise'  : tr100_tc_zs_dt_noise, 
+                        'TR2150_Timecourse_Noise' : tr2150_tc_zs_dt_noise})
+        
+    data_df = pd.DataFrame(all_data)
+
+
+    tr100_data = []
+    tr2150_data = []
+    add_data = []
+    concat_data = []
+
+    for subject in subjects:
+        sub_row = data_df[data_df['Subject_ID']  == subject]
+        logging.info(f'subject {subject}')
+
+        tr100 = sub_row['TR100_Timecourse'].iloc[0]
+        tr100_noise = sub_row['TR100_Timecourse_Noise'].iloc[0]
+        
+        tr2150 = sub_row['TR2150_Timecourse'].iloc[0]
+        tr2150_noise = sub_row['TR2150_Timecourse_Noise'].iloc[0]
+
+        n_regions, n_tp_tr100 = tr100.shape
+        _, n_tp_tr2150 = tr2150.shape
+
+        tr2150_window_size = 100
+        tr2150_stride = 1
+        n_sections = 80
+        tr2150_start_ix = 0
+        tr2150_end_ix = tr2150_window_size
+        
+        tr100_window_size = int((n_tp_tr100 / n_tp_tr2150) * tr2150_window_size)
+        tr100_stride = n_tp_tr100 // n_tp_tr2150
+        tr100_start_ix = 0
+        tr100_end_ix = tr100_window_size
+
+
+        for j in range(n_sections):
+            window_ix = i * n_sections * 2 + j * 2
             
-            sr2 = tc_sr2[subject_id]                                                    # load current sub's TR=2150ms TC from dict
-            sr2_noise = tc_sr2_noise[subject_id]                                        # load current sub's noisy TR=2150ms TC from dict
+            tr100_section = tr100[:, tr100_start_ix:tr100_end_ix]
+            tr100_section_noise = tr100_noise[:, tr100_start_ix:tr100_end_ix]
 
-            n_regions, n_tp_tr100 = sr1.shape                                           # set n_regions (components) and sr1 num time points from TR=100ms TC
-            _, n_tp_tr2150 = sr2.shape                                                  # set sr2 num time points from TR=2150ms TC
-
-            tr2150_window_size = 100                                                    # set window size for TR=2150ms windows
-            tr2150_stride = 1                                                           # set stride for TR=2150ms windows
-            n_sections = 80                                                             # set number of sections (windows) for TR=2150ms
-            tr2150_start_ix = 0                                                         # set starting ix for TR=2150ms
-            tr2150_end_ix = tr2150_window_size                                          # set end ix as end of first window (window size) for TR=2150ms
-
-            tr100_window_size = int((n_tp_tr100 / n_tp_tr2150) * tr2150_window_size)    # set window size for TR=100ms using ratio ws_sr1/tp_sr1 = ws_sr2/tp_sr2
-            tr100_stride = n_tp_tr100 // n_tp_tr2150                                    # set stride for TR=100ms as num tp SR1 for each SR2 tp
-            tr100_start_ix = 0                                                          # set starting ix for TR=100ms
-            tr100_end_ix = tr100_window_size                                            # set end ix as end of first window (window size) for TR=100ms
+            tr2150_section = tr2150[:, tr2150_start_ix:tr2150_end_ix]
+            tr2150_section_noise = tr2150_noise[:, tr2150_start_ix:tr2150_end_ix]
 
 
 
 
-            for j in range(n_sections):                                                                                                     # for current sub's data, iterate over all windows "sections" (n_sections) as j
-                window_ix = i * n_sections * 2 + j * 2  
-                                                                                                                        # index used for pulling stored sr1&2 windowed data
-                logging.debug(f"Processing section {j+1}/{n_sections} for subject {subject_id}")
-                logging.debug(f'window_ix {window_ix}')
-                logging.debug(f'j {j}')
 
 
-                tr100_section = sr1[:, tr100_start_ix:tr100_end_ix]                                                                         # slice current sub's TR=100ms TC from startix to endix across all ICA comps
-                tr100_section_noise = sr1_noise[:, tr100_start_ix:tr100_end_ix]                                                             # slice current sub's NOISY TR=100ms TC from startix to endix across all ICA comps     
+            tr100_fnc_triu = np.corrcoef(tr100_section)[np.triu_indices(n_regions)]
+            tr100_noise_fnc_triu = np.corrcoef(tr100_section_noise)[np.triu_indices(n_regions)]
+
+            tr2150_fnc_triu = np.corrcoef(tr2150_section)[np.triu_indices(n_regions)]
+            tr2150_noise_fnc_triu = np.corrcoef(tr2150_section_noise)[np.triu_indices(n_regions)]
+
+            concat_tr100_tr2150 = np.concatenate((tr100_fnc_triu , tr2150_fnc_triu))
+            concat_tr100_tr2150_noise = np.concatenate((tr100_noise_fnc_triu , tr2150_noise_fnc_triu))
+
+            add_tr100_tr2150 = tr100_fnc_triu + tr2150_fnc_triu
+            add_tr100_tr2150_noise = tr100_noise_fnc_triu + tr2150_noise_fnc_triu
 
 
-
-                tr2150_section = sr2[:, tr2150_start_ix:tr2150_end_ix]                                                                      # slice current sub's TR=2150ms TC from startix to endix across all ICA comps
-                tr2150_section_noise = sr2_noise[:, tr2150_start_ix:tr2150_end_ix]                                                          # slice current sub's NOISY TR=2150ms TC from startix to endix across all ICA comps     
-
-
-                windows_sr1.append((np.corrcoef(tr100_section)[np.triu_indices(n_regions)], 0, subject_id))                                 # compute the pearson corr. mat of the TR=100ms window, take triu entries.,  append  (triu ent, label, sub id)
-                windows_sr1.append((np.corrcoef(tr100_section_noise)[np.triu_indices(n_regions)], 1, subject_id))                           # compute the pearson corr. mat of NOISY TR=100ms window, take triu entries., append (triu ent, label, sub id)
-
-
-                windows_sr2.append((np.corrcoef(tr2150_section)[np.triu_indices(n_regions)], 0, subject_id))                                # compute the pearson corr. mat of the TR=2150ms window, take triu entries., append    (triu ent, label, sub id)
-                windows_sr2.append((np.corrcoef(tr2150_section_noise)[np.triu_indices(n_regions)], 1, subject_id))                          # compute the pearson corr. mat of NOISY TR=2150ms window, take triu entries., append  (triu ent, label, sub id) 
-
-
-                windows_concat.append((np.concatenate((windows_sr1[window_ix][0], windows_sr2[window_ix][0])),      # concat both triu entries
-                                    0,                                                                           # get label of sr1&2 window
-                                    subject_id))                                                                 # get subid of sr1&2 window
+            tr100_data.append({'subject'          : subject, 
+                            'TR100ms_Window'   : tr100_fnc_triu, 
+                            'target'           : '0'})
+            tr100_data.append({'subject'          : subject, 
+                            'TR100ms_Window'   : tr100_noise_fnc_triu, 
+                            'target'           : '1'})
+            
+            tr2150_data.append({'subject'         : subject,
+                                'TR2150ms_Window' : tr2150_fnc_triu, 
+                                'target'          : '0'})
+            tr2150_data.append({'subject'         : subject,
+                                'TR2150ms_Window' : tr2150_noise_fnc_triu, 
+                                'target'          : '1'})
+            
+            concat_data.append({'subject'          : subject, 
+                                'Concat_Window'   : concat_tr100_tr2150,
+                            'target'            : '0'})
+            concat_data.append({'subject'          : subject, 
+                                'Concat_Window'    : concat_tr100_tr2150_noise,
+                                'target'           : '1'})
+            
+            add_data.append({'subject'             : subject,
+                            'Add_Window'         : add_tr100_tr2150,
+                            'target'             : '0'})
+            add_data.append({'subject'             : subject,
+                            'Add_Window'         : add_tr100_tr2150_noise,
+                            'target'             : '1'})
+            
+            tr100_start_ix += tr100_stride
+            tr100_end_ix = tr100_end_ix + tr100_stride
                 
-                windows_concat.append((np.concatenate((windows_sr1[window_ix+1][0], windows_sr2[window_ix+1][0])), # concat both noisy triu entries
-                                    1,                                                                          # get label of sr1&2 window
-                                    subject_id))                                                                # get subid of sr1&2 window
-                
-                windows_add.append((windows_sr1[window_ix][0] + windows_sr2[window_ix][0],                         # sum features of both triu entries
-                                    0,                                                                          # get label of sr1&2 window
-                                    subject_id))                                                                # get subid of sr1&2 window
-                                                
-                windows_add.append((windows_sr1[window_ix+1][0] + windows_sr2[window_ix+1][0],                     # sum features of noisy both triu entries
-                                    1,                                                                          # get label of sr1&2 window
-                                    subject_id))                                                                # get subid of sr1&2 window
-                    
-                tr100_start_ix += tr100_stride                                                                                              # update sr1 start ix by adding stride length
-                tr100_end_ix = tr100_end_ix + tr100_stride                                                                                  # update sr1 end ix by adding stride length to prev end ix
-                    
-                tr2150_start_ix += tr2150_stride                                                                                            # update sr2 start ix by adding stride length
-                tr2150_end_ix = tr2150_end_ix + tr2150_stride                                                                               # update sr2 end ix by adding stride length to prev end ix
+            tr2150_start_ix += tr2150_stride
+            tr2150_end_ix = tr2150_end_ix + tr2150_stride
 
 
 
-        
-        data_sr1 = [entry[0] for entry in windows_sr1]                                                                                   # collect datapoint from sr1 windows list entry tuple
-        labels_sr1 = [entry[1] for entry in windows_sr1]                                                                                 # collect label from sr1 windows list entry tuple
-        groups_sr1 = [entry[2] for entry in windows_sr1]                                                                                 # collect group from sr1 windows list entry tuple
-
-        data_sr2 = [entry[0] for entry in windows_sr2]                                                                                   # collect datapoint from sr2 windows list entry tuple
-        labels_sr2 = [entry[1] for entry in windows_sr2]                                                                                 # collect label from sr2 windows list entry tuple
-        groups_sr2 = [entry[2] for entry in windows_sr2]                                                                                 # collect group from sr2 windows list entry tuple
-
-        data_concat = [entry[0] for entry in windows_concat]                                                                             # collect datapoint from concat windows list entry tuple
-        labels_concat = [entry[1] for entry in windows_concat]                                                                           # collect datapoint from concat windows list entry tuple
-        groups_concat = [entry[2] for entry in windows_concat]                                                                           # collect group from concat windows list entry tuple
-
-        data_add = [entry[0] for entry in windows_add]                                                                                   # collect datapoint from add windows list entry tuple
-        labels_add = [entry[1] for entry in windows_add]                                                                                 # collect datapoint from add windows list entry tuple
-        groups_add = [entry[2] for entry in windows_add]                                                                                 # collect group from add windows list entry tuple
-        
-
-
-        del tc_sr1                                                                                                                       # delete sr1 TC dict from memory since no longer used
-        del tc_sr2                                                                                                                       # delete sr2 TC dict from memory since no longer used
-        del tc_sr1_noise                                                                                                                 # delete noisy sr1 TC dict from memory since no longer used
-        del tc_sr2_noise                                                                                                                 # delete noisy sr2 TC dict from memory since no longer used
-        
-        del windows_sr1                                                                                                                  # delete windows sr1 dict from memory since no longer used
-        del windows_sr2                                                                                                                  # delete windows sr2 dict from memory since no longer used
-        del windows_concat                                                                                                               # delete windows concat dict from memory since no longer used
-        del windows_add                                                                                                                  # delete windows add dict from memory since no longer used
-
-        
-        
-
-
-        # Initialize SimpleImputer
-        imputer = SimpleImputer(strategy='mean')
-
-        # Impute missing values and encode labels for each dataset
-        data_sr1 = imputer.fit_transform(data_sr1)
-        data_sr2 = imputer.fit_transform(data_sr2)
-        data_concat = imputer.fit_transform(data_concat)
-        data_add = imputer.fit_transform(data_add)
-
-        np.random.seed(42)
-
-        random_state = check_random_state(42)
+    tr100_df = pd.DataFrame(tr100_data)
+    tr2150_df = pd.DataFrame(tr2150_data)
+    concat_df = pd.DataFrame(concat_data)
+    add_df = pd.DataFrame(add_data)
 
 
 
 
-        # run polyssifier for SR1 noise vs none
-        logging.info(f'\n\n\n\n START POLYSSIFIER FOR TR=100ms snr {SNR} noise_ix {noise_ix}')
-        scaler1 = MinMaxScaler()#StandardScaler()
-        data_scaled1 = scaler1.fit_transform(data_sr1)
-        report1 = poly(data=data_scaled1, label=np.array(labels_sr1), groups=groups_sr1, n_folds=n_folds, random_state=random_state,                               # run polyssifier on SR1 noise vs none data, labels, and groups
-                                project_name=f'SR1_noise_{scalar}', scale=False, concurrency=n_threads, save=False,
-                                exclude=['Decision Tree', 'Random Forest', 'Voting', 'Nearest Neighbors', 'Linear SVM'],  scoring='auc')
-        
-        
-        for classifier in report1.scores.columns.levels[0]:                                                                                         # iterate through all classifiers in the report
-            if classifier == 'Voting':
-                continue
+    #############################
+    #   TR=100ms
+    #############################
+    logging.info(f'\n\n\n\n START POLYSSIFIER FOR TR=100ms snr {SNR} scalar {scalar} noise_ix {noise_ix}')
+    group_tr100 = tr100_df['subject']
+    y_tr100 = tr100_df['target']
+    y_tr100 = np.array([str(entry) for entry in y_tr100])
+    X_tr100 = tr100_df['TR100ms_Window']
+    X_tr100 = np.array([np.array(entry) for entry in X_tr100])
 
-            res1.append({'graph_no': graph_ix,                                                                                                      # save the SR1 results to a dict for results dataframe
-                            'nstd': nstd,
-                            'burnin': burn,
-                            'noise_no': noise_ix,
-                            'snr': SNR,
-                            'scalar': scalar,
-                            'classifier': classifier,
-                            'test_scores': report1.scores[classifier, 'test'], 
-                            'target': report1.target, 
-                            'predictions': np.array(report1.predictions[classifier]).astype(int),
-                            'test_proba': report1.test_proba[classifier]})
+    res1 = []
+    report1 = poly(data=X_tr100, label=y_tr100, groups=group_tr100, n_folds=n_folds, scale=True, concurrency=n_threads, save=False, 
+                    exclude=['Decision Tree', 'Random Forest', 'Voting', 'Nearest Neighbors', 'Linear SVM'],  scoring='auc')
 
-            logging.info(report1.scores[classifier, 'test'])
+    for classifier in report1.scores.columns.levels[0]:
+                if classifier == 'Voting':
+                    continue
+
+                res1.append({'graph_no': graph_ix,
+                                'nstd': nstd,
+                                'burnin': burn,
+                                'noise_no': noise_ix,
+                                'snr': SNR,
+                                'scalar': scalar,
+                                'classifier': classifier,
+                                'test_scores': report1.scores[classifier, 'test'], 
+                                'target': report1.target, 
+                                'predictions': np.array(report1.predictions[classifier]).astype(int),
+                                'test_proba': report1.test_proba[classifier]})
+
+                logging.info(report1.scores[classifier, 'test'])
 
 
 
 
-        # run polyssifier for SR2 noise vs none
-        logging.info(f'\n\n\n\n START POLYSSIFIER FOR TR=2150ms snr {SNR} noise_ix {noise_ix}')
-        scaler2 = MinMaxScaler()#StandardScaler()
-        data_scaled2 = scaler2.fit_transform(data_sr2)
-        report2 = poly(data=data_scaled2, label=np.array(labels_sr2), groups=groups_sr2, n_folds=n_folds, random_state=random_state,                              # run polyssifier on SR2 noise vs none data, labels, and groups
-                                project_name=f'SR2_noise_{scalar}', scale=False, concurrency=n_threads, save=False,
-                                exclude=['Decision Tree', 'Random Forest', 'Voting', 'Nearest Neighbors', 'Linear SVM'],  scoring='auc')
-        
-        
-        for classifier in report2.scores.columns.levels[0]:                                                                                        # iterate through all classifiers in the report
-            if classifier == 'Voting':
-                continue
+    #############################
+    #   TR=2150ms
+    #############################
+    logging.info(f'\n\n\n\n START POLYSSIFIER FOR TR=2150ms snr {SNR} scalar {scalar} noise_ix {noise_ix}')
+    group_tr2150 = tr2150_df['subject']
+    y_tr2150 = tr2150_df['target']
+    y_tr2150 = np.array([str(entry) for entry in y_tr2150])
+    X_tr2150 = tr2150_df['TR2150ms_Window']
+    X_tr2150 = np.array([np.array(entry) for entry in X_tr2150])
 
-            res2.append({'graph_no': graph_ix,                                                                                                     # save the SR2 results to a dict for results dataframe
-                        'nstd': nstd,
-                        'burnin': burn,
-                        'noise_no': noise_ix,
-                        'snr': SNR,
-                        'scalar': scalar,
-                        'classifier': classifier,
-                        'test_scores': report2.scores[classifier, 'test'], 
-                        'target': report2.target, 
-                        'predictions': np.array(report2.predictions[classifier]).astype(int), 
-                        'test_proba': report2.test_proba[classifier]})
-            
-            logging.info(report2.scores[classifier, 'test'])
+    res2 = []
+    report2 = poly(data=X_tr2150, label=y_tr2150, groups=group_tr2150, n_folds=n_folds, scale=True, concurrency=n_threads, save=False, 
+                    exclude=['Decision Tree', 'Random Forest', 'Voting', 'Nearest Neighbors', 'Linear SVM'],  scoring='auc')
+
+    for classifier in report2.scores.columns.levels[0]:                                                                                         # iterate through all classifiers in the report
+                if classifier == 'Voting':
+                    continue
+
+                res2.append({'graph_no': graph_ix,                                                                                                      # save the SR1 results to a dict for results dataframe
+                                'nstd': nstd,
+                                'burnin': burn,
+                                'noise_no': noise_ix,
+                                'snr': SNR,
+                                'scalar': scalar,
+                                'classifier': classifier,
+                                'test_scores': report2.scores[classifier, 'test'], 
+                                'target': report2.target, 
+                                'predictions': np.array(report2.predictions[classifier]).astype(int),
+                                'test_proba': report2.test_proba[classifier]})
+
+                logging.info(report2.scores[classifier, 'test'])
 
 
 
 
 
-        # run polyssifier for CONCAT noise vs none
-        logging.info(f'\n\n\n\n START POLYSSIFIER FOR CONCAT snr {SNR} noise_ix {noise_ix}')
-        scaler3 = MinMaxScaler()#StandardScaler()
-        data_scaled3 = scaler3.fit_transform(data_concat)
-        report3 = poly(data=data_scaled3, label=np.array(labels_concat), groups=groups_concat, n_folds=n_folds, random_state=random_state,                      # run polyssifier on CONCAT noise vs none data, labels, and groups
-                                project_name=f'CONCAT_noise_{scalar}', scale=False, concurrency=n_threads, save=False,
-                                exclude=['Decision Tree', 'Random Forest', 'Voting', 'Nearest Neighbors', 'Linear SVM'],  scoring='auc')
-        
-        
-        for classifier in report3.scores.columns.levels[0]:                                                                                      # iterate through all classifiers in the report
-            if classifier == 'Voting':
-                continue
+    #############################
+    #   CONCAT
+    #############################
+    logging.info(f'\n\n\n\n START POLYSSIFIER FOR CONCAT snr {SNR} scalar {scalar} noise_ix {noise_ix}')
+    group_concat = concat_df['subject']
+    y_concat = concat_df['target']
+    y_concat = np.array([str(entry) for entry in y_concat])
+    X_concat = concat_df['Concat_Window']
+    X_concat = np.array([np.array(entry) for entry in X_concat])
 
-            
-            res3.append({'graph_no': graph_ix,                                                                                                   # save the CONCAT results to a dict for results dataframe
-                        'nstd': nstd,
-                        'burnin': burn,
-                        'noise_no': noise_ix,
-                        'snr': SNR,
-                        'scalar': scalar,
-                        'classifier': classifier,
-                        'test_scores': report3.scores[classifier, 'test'], 
-                        'target': report3.target, 
-                        'predictions': np.array(report3.predictions[classifier]).astype(int), 
-                        'test_proba': report3.test_proba[classifier]})
-            
-            logging.info(report3.scores[classifier, 'test'])
+    res3 = []
+    report3 = poly(data=X_concat, label=y_concat, groups=group_concat, n_folds=n_folds, scale=True, concurrency=n_threads, save=False, 
+                    exclude=['Decision Tree', 'Random Forest', 'Voting', 'Nearest Neighbors', 'Linear SVM'],  scoring='auc')
 
+    for classifier in report3.scores.columns.levels[0]:                                                                                         # iterate through all classifiers in the report
+                if classifier == 'Voting':
+                    continue
 
+                res3.append({'graph_no': graph_ix,                                                                                                      # save the SR1 results to a dict for results dataframe
+                                'nstd': nstd,
+                                'burnin': burn,
+                                'noise_no': noise_ix,
+                                'snr': SNR,
+                                'scalar': scalar,
+                                'classifier': classifier,
+                                'test_scores': report3.scores[classifier, 'test'], 
+                                'target': report3.target, 
+                                'predictions': np.array(report3.predictions[classifier]).astype(int),
+                                'test_proba': report3.test_proba[classifier]})
 
-
-
-        # run polyssifier for ADD noise vs none
-        logging.info(f'\n\n\n\n START POLYSSIFIER FOR ADD snr {SNR} noise_ix {noise_ix}')
-        scaler4 = MinMaxScaler()#StandardScaler()
-        data_scaled4 = scaler4.fit_transform(data_add)
-        report4 = poly(data=data_scaled4, label=np.array(labels_add), groups=groups_add, n_folds=n_folds, random_state=random_state,                          # run polyssifier on ADD noise vs none data, labels, and groups
-                            project_name=f'ADD_noise_{scalar}', scale=False, concurrency=n_threads, save=False,
-                            exclude=['Decision Tree', 'Random Forest', 'Voting', 'Nearest Neighbors', 'Linear SVM'],  scoring='auc')
-        
-
-        for classifier in report4.scores.columns.levels[0]:                                                                                    # iterate through all classifiers in the report
-            if classifier == 'Voting':
-                continue
-
-            
-            res4.append({'graph_no': graph_ix,                                                                                                 # save the ADD results to a dict for results dataframe
-                        'nstd': nstd,
-                        'burnin': burn,
-                        'noise_no': noise_ix,
-                        'snr': SNR,
-                        'scalar': scalar,
-                        'classifier': classifier,
-                        'test_scores': report4.scores[classifier, 'test'], 
-                        'target': report4.target, 
-                        'predictions': np.array(report4.predictions[classifier]).astype(int), 
-                        'test_proba': report4.test_proba[classifier]})
-
-
-            logging.info(report4.scores[classifier, 'test'])
+                logging.info(report3.scores[classifier, 'test'])
 
 
 
-df1 = pd.DataFrame(res1)                                                                                    # save SR1 results as dataframe
-df2 = pd.DataFrame(res2)                                                                                    # save SR2 results as dataframe
-df3 = pd.DataFrame(res3)                                                                                    # save CONCAT results as dataframe
-df4 = pd.DataFrame(res4)                                                                                    # save ADD results as dataframe
 
 
 
-df1.to_pickle(f'/data/users2/jwardell1/undersampling-project/OULU/pkl-files/sr1_{SNR}_{graph_ix}.pkl')      # write SR1 dataframe to disk as pickle
-df2.to_pickle(f'/data/users2/jwardell1/undersampling-project/OULU/pkl-files/sr2_{SNR}_{graph_ix}.pkl')      # write SR2 dataframe to disk as pickle
-df3.to_pickle(f'/data/users2/jwardell1/undersampling-project/OULU/pkl-files/concat_{SNR}_{graph_ix}.pkl')   # write CONCAT dataframe to disk as pickle
-df4.to_pickle(f'/data/users2/jwardell1/undersampling-project/OULU/pkl-files/add_{SNR}_{graph_ix}.pkl')      # write ADD dataframe to disk as pickle
+    #############################
+    #   ADD
+    #############################
+    logging.info(f'\n\n\n\n START POLYSSIFIER FOR ADD snr {SNR} scalar {scalar} noise_ix {noise_ix}')
+    group_add = add_df['subject']
+    y_add = add_df['target']
+    y_add = np.array([str(entry) for entry in y_add])
+    X_add = add_df['Add_Window']
+    X_add = np.array([np.array(entry) for entry in X_add])
 
+    res4 = []
+    report4 = poly(data=X_add, label=y_add, groups=group_add, n_folds=n_folds, scale=True, concurrency=n_threads, save=False, 
+                    exclude=['Decision Tree', 'Random Forest', 'Voting', 'Nearest Neighbors', 'Linear SVM'],  scoring='auc')
+
+    for classifier in report4.scores.columns.levels[0]:                                                                                         # iterate through all classifiers in the report
+                if classifier == 'Voting':
+                    continue
+
+                res4.append({'graph_no': graph_ix,                                                                                                      # save the SR1 results to a dict for results dataframe
+                                'nstd': nstd,
+                                'burnin': burn,
+                                'noise_no': noise_ix,
+                                'snr': SNR,
+                                'scalar': scalar,
+                                'classifier': classifier,
+                                'test_scores': report4.scores[classifier, 'test'], 
+                                'target': report4.target, 
+                                'predictions': np.array(report4.predictions[classifier]).astype(int),
+                                'test_proba': report4.test_proba[classifier]})
+
+                logging.info(report4.scores[classifier, 'test'])
+
+
+
+df1 = pd.DataFrame(res1)  
+df1.to_pickle(f'/data/users2/jwardell1/undersampling-project/OULU/pkl-files/sr1_{SNR}_{graph_ix}.pkl')
+df2 = pd.DataFrame(res2)
+df2.to_pickle(f'/data/users2/jwardell1/undersampling-project/OULU/pkl-files/sr2_{SNR}_{graph_ix}.pkl')
+df3 = pd.DataFrame(res3)
+df3.to_pickle(f'/data/users2/jwardell1/undersampling-project/OULU/pkl-files/concat_{SNR}_{graph_ix}.pkl')
+df4 = pd.DataFrame(res4)
+df4.to_pickle(f'/data/users2/jwardell1/undersampling-project/OULU/pkl-files/add_{SNR}_{graph_ix}.pkl')
