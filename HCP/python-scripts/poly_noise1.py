@@ -1,3 +1,10 @@
+
+import statsmodels.api as sm
+import pandas as pd
+import numpy as np
+from sklearn.model_selection import StratifiedGroupKFold
+
+
 import numpy as np
 import pandas as pd
 import sys
@@ -6,26 +13,25 @@ from polyssifier import poly
 
 import logging 
 
+import scipy.sparse as sp
 import scipy.io
 from scipy.stats import zscore
-import scipy.signal
+from scipy.signal import detrend
 
-
-from sklearn.preprocessing import MinMaxScaler
-from sklearn.utils import check_random_state
-from sklearn.impute import SimpleImputer
-
-import scipy.sparse as sp
 from scipy.sparse.linalg import eigs
 from gunfolds.utils import graphkit as gk
 from gunfolds.conversions import graph2adj
 
+import matplotlib.pyplot as plt
 
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+from sklearn.preprocessing import MinMaxScaler
+from sklearn.preprocessing import StandardScaler
+from sklearn.utils import check_random_state
+from sklearn.impute import SimpleImputer
 
 
-
-
+from sklearn.neural_network import MLPClassifier
+from sklearn.metrics import roc_auc_score
 
 def check_matrix_powers(W, A, powers, threshold):
     for n in powers:
@@ -92,7 +98,8 @@ def genData(A, rate=2, burnin=100, ssize=5000, nstd=1):
 
 
 
-"""
+
+
 if len(sys.argv) != 4:
     print("Usage: python poly_noise1.py SNR graph_dir graph_ix")
     sys.exit(1)
@@ -100,309 +107,384 @@ if len(sys.argv) != 4:
 SNR = float(sys.argv[1])
 graph_dir = sys.argv[2]
 graph_ix = int(sys.argv[3])
-g = np.load(graph_dir, allow_pickle=True)
+
 """
 SNRs = [0.5, 0.6, 0.7, 0.8, 0.9, 1.0]
-graph_ix = 1000
-graph_dir = '/data/users2/jwardell1/nshor_docker/examples/oulu-project/OULU/g0.pkl'
-g = np.load(graph_dir, allow_pickle=True)#= gk.ringmore(53, 10)
+graph_ix = 1002
+graph_dir = '/data/users2/jwardell1/nshor_docker/examples/hcp-project/HCP/g4.pkl'
+"""
 
-
-
-num_converged = 0
-noises = dict()
-converged_subjects = []
-
-
-#g = gk.ringmore(53, 10)
 g = np.load(graph_dir, allow_pickle=True)
+A = graph2adj(g)
+u_rate = 1
 
 
-num_graphs = 3
-num_noise = 3
-n_folds = 4
-n_threads= 16
+
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 
 nstd = 1.0
 burn = 100
 threshold = 0.0001
+
+
 NOISE_SIZE = 1200
+#subjects = np.loadtxt("/data/users2/jwardell1/undersampling-project/HCP/txt-files/subjects.txt", dtype=str)
+subjects = np.loadtxt("/data/users2/jwardell1/undersampling-project/HCP/txt-files/subjects_dbg.txt", dtype=str)
+NUM_SUBS = len(subjects)
 
-
-subjects = np.loadtxt("/data/users2/jwardell1/undersampling-project/HCP/txt-files/subjects.txt", dtype=str)
-#subjects = np.loadtxt("/data/users2/jwardell1/undersampling-project/HCP/txt-files/subjects_dbg.txt", dtype=str)
-
-
-noises = dict()
-
-
-
-
-
-res1 = []
-res2 = []
-res3 = []
-res4 = []
+num_graphs = 1
+num_noise = 1
+n_folds = 4
+n_threads= 16
 
 
 
-
-
-
-
-
-
-
-
-
-A = graph2adj(g)
-u_rate = 1
 logging.info(f'\t\t\t\tGraph Number {graph_ix} of {num_graphs}')
+logging.info(f'\t\t\t\tNUM_SUBS {NUM_SUBS}')
+
+
+
+
 
 #Using the loaded graph, generate a number of noise matrices for all subjects until converged
 for noise_ix in range(num_noise):
-    for SNR in SNRs:
-        scalar = 10**(SNR/-2)
+    #for SNR in SNRs:
+    num_converged = 0
+    converged_subjects = []
+    noises = dict()
+    while num_converged < NUM_SUBS:
+        for subject in subjects:
+            if subject in converged_subjects:
+                continue
 
-        logging.info(f'\t\t\t\tSNR- {SNR}')
-        logging.info(f'\t\t\t\tscalar- {scalar}')
-        logging.info(f'\t\t\t\tGRAPH IX- {graph_ix}')
-        num_converged = 0
-        noises = dict()
-        converged_subjects = []
-        while num_converged < len(subjects):
-            for subject in subjects:
-                if subject in converged_subjects:
-                    continue  
-
-
-                try:
-                    W = create_stable_weighted_matrix(A, threshold=0.001, powers=[2])
-                    var_noise = genData(W, rate=u_rate, burnin=burn, ssize=NOISE_SIZE, nstd=nstd)
-                    var_noise = zscore(var_noise, axis=1)
-                    noises[subject] = var_noise*scalar
-                    num_converged += 1
-                    converged_subjects.append(subject)
-                
-                except Exception as e:
-                    print(f'Convergence error while generating matrix for dir {subject}, num converged: {num_converged}')
-                    print(e)
-                    continue
-            
-
-
-        #Load all subject time courses, add noise and perform windowing
-        with open('/data/users2/jwardell1/undersampling-project/HCP/txt-files/tc_data.txt', 'r') as tc_data:
-        #with open('/data/users2/jwardell1/undersampling-project/HCP/txt-files/tc_data_dbg.txt', 'r') as tc_data:
-            lines = tc_data.readlines()
-        
-        fnc_sr1 = []
-        fnc_sr2 = []
-        fnc_concat = []
-        fnc_add = []
-
-        for i in range(len(lines)):
-            file_path_sr1 = lines[i].strip()
-            logging.info(f'Processing SR1: {file_path_sr1}')
             try:
-                sr1 = scipy.io.loadmat(file_path_sr1)['TCMax']
-            except:
-                continue
+                W = create_stable_weighted_matrix(A, threshold=threshold, powers=[2])
+                var_noise = genData(W, rate=u_rate, burnin=burn, ssize=NOISE_SIZE, nstd=nstd)
+                var_noise = zscore(var_noise, axis=1)
+                noises[subject] = var_noise 
+                num_converged += 1
+                converged_subjects.append(subject)
 
+            except Exception as e:
+                print(e)
+                logging.info(f'num converged: {num_converged}')
             
+
+
+
+    
+    all_data = []
+
+    #tc_filepath = '/data/users2/jwardell1/undersampling-project/HCP/txt-files/tc_data.txt'
+    tc_filepath = '/data/users2/jwardell1/undersampling-project/HCP/txt-files/tc_data_dbg.txt'
+    with open(tc_filepath, 'r') as tc_data:
+        lines = tc_data.readlines()
+
+    for i in range(len(lines)):
+        
+        logging.info(f'loading TC for subject {subject}')
+        filepath_sr1 = lines[i].strip()
+        try:
+            sr1_tc = scipy.io.loadmat(filepath_sr1)['TCMax']
+        
+        except:
+            continue
+
+        subject = filepath_sr1.split('/')[-3]
+
+        if sr1_tc.shape[0] != 53:
+            sr1_tc = sr1_tc.T
+
+        if sr1_tc.shape[1] < 1200:
+            continue
+
+        logging.info(f'sr1.shape - {sr1_tc.shape}')
+        sr1_tc_zc = zscore(sr1_tc, axis=1)
+        sr1_tc_zc_dt = scipy.signal.detrend(sr1_tc_zc, axis=1)
+
+        sr2_tc_zc_dt = sr1_tc_zc_dt[:,::3]
+        logging.info(f'sr2.shape - {sr2_tc_zc_dt.shape}')
+
+
+        noise_sr1 = noises[subject]
+        noise_sr2 = noises[subject][:,::3]
+
+        all_data.append({'Subject_ID'             : str(subject), 
+                        'VAR_Noise'               : noises[subject], 
+                        'SR1_Noise'               : noise_sr1, 
+                        'SR2_Noise'               : noise_sr2, 
+                        'SR1_Timecourse'          : sr1_tc_zc_dt, 
+                        'SR2_Timecourse'          : sr2_tc_zc_dt
+                        })
+        
+    data_df = pd.DataFrame(all_data)
+
+
+
+
+
+    xTx_sr1 = np.sum(np.square(data_df['SR1_Timecourse'].mean()))
+    nTn_sr1 = np.sum(np.square(data_df['SR1_Noise'].mean()))
+    scalar_sr1 = (xTx_sr1 / nTn_sr1) * 10**(SNR/-2)
+
+    xTx_sr2 = np.sum(np.square(data_df['SR2_Timecourse'].mean()))
+    nTn_sr2 = np.sum(np.square(data_df['SR2_Noise'].mean()))
+    scalar_sr2 = (xTx_sr2 / nTn_sr2) * 10**(SNR/-2)
+
+
+    logging.info(f'\t\t\t\tSNR {SNR}')
+    logging.info(f'\t\t\t\tscalar_sr1 {scalar_sr1}')
+    logging.info(f'\t\t\t\tscalar_sr2 {scalar_sr2}')
+
+    data_df['SR1_Noise'] = data_df['SR1_Noise'].multiply(scalar_sr1)
+    data_df['SR2_Noise'] = data_df['SR2_Noise'].multiply(scalar_sr2)
+
+    data_df['SR1_Timecourse_Noise'] = data_df['SR1_Noise'] + data_df['SR1_Timecourse']
+    data_df['SR2_Timecourse_Noise'] = data_df['SR2_Noise'] + data_df['SR2_Timecourse']
+
+
+
+
+
+    sr1_data = []
+    sr2_data = []
+    add_data = []
+    concat_data = []
+
+    for subject in subjects:
+        sub_row = data_df[data_df['Subject_ID']  == subject]
+        logging.info(f'subject {subject}')
+
+        sr1 = sub_row['SR1_Timecourse'].iloc[0]
+        sr1_noise = sub_row['SR1_Timecourse_Noise'].iloc[0]
+        
+        sr2 = sub_row['SR2_Timecourse'].iloc[0]
+        sr2_noise = sub_row['SR2_Timecourse_Noise'].iloc[0]
+
+        n_regions, n_tp_sr1 = sr1.shape
+        _, n_tp_sr2 = sr2.shape
+
+        sr2_window_size = 100
+        sr2_stride = 1
+        n_sections = 80
+        sr2_start_ix = 0
+        sr2_end_ix = sr2_window_size
+        
+        sr1_window_size = int((n_tp_sr1 / n_tp_sr2) * sr2_window_size)
+        sr1_stride = n_tp_sr1 // n_tp_sr2
+        sr1_start_ix = 0
+        sr1_end_ix = sr1_window_size
+
+
+        for j in range(n_sections):
+            window_ix = i * n_sections * 2 + j * 2
             
+            sr1_section = sr1[:, sr1_start_ix:sr1_end_ix]
+            sr1_section_noise = sr1_noise[:, sr1_start_ix:sr1_end_ix]
 
-            if sr1.shape[0] != 53:
-                sr1 = sr1.T
-
-            if sr1.shape[1] < 1200:
-                continue
-
-            logging.info(f'sr1.shape - {sr1.shape}')
-            sr1 = zscore(sr1, axis=1)
-            sr1 = scipy.signal.detrend(sr1, axis=1)
-            sr2 = sr1[:,::3]
-            logging.info(f'sr2.shape - {sr2.shape}')
-
-
-            n_regions = sr1.shape[0]
-
-            subject_id = file_path_sr1.split('/')[-3]
-            var_noise = noises[subject_id]
-
-            fnc_sr1.append((np.corrcoef(sr1)[np.triu_indices(n_regions)], 0, subject_id))
-            fnc_sr1.append((np.corrcoef(sr1 + var_noise)[np.triu_indices(n_regions)], 1, subject_id))
-
-            fnc_sr2.append((np.corrcoef(sr2)[np.triu_indices(n_regions)], 0, subject_id))
-            fnc_sr2.append((np.corrcoef(sr2 + var_noise[:,::3])[np.triu_indices(n_regions)], 1, subject_id))
-
-            window_ix = len(fnc_sr1)-2
-            logging.info(f'window_ix {window_ix}')
-            logging.info(f'len(fnc_sr1) {len(fnc_sr1)}')
-            logging.info(f'len(fnc_sr2) {len(fnc_sr2)}')
-
-            fnc_concat.append((np.concatenate((fnc_sr1[window_ix][0], fnc_sr2[window_ix][0])), 0, subject_id))
-            fnc_concat.append((np.concatenate((fnc_sr1[window_ix+1][0], fnc_sr2[window_ix+1][0])), 1, subject_id))
-
-            fnc_add.append(((fnc_sr1[window_ix][0] + fnc_sr2[window_ix][0]), 0, subject_id))
-            fnc_add.append(((fnc_sr1[window_ix+1][0] + fnc_sr2[window_ix+1][0]), 1, subject_id))
-
-
-
-        #Prepare the data for polyssifier
-        data_sr1 = [entry[0] for entry in fnc_sr1]
-        labels_sr1 = [entry[1] for entry in fnc_sr1]
-        groups_sr1 = [entry[2] for entry in fnc_sr1]
-
-        data_sr2 = [entry[0] for entry in fnc_sr2]
-        labels_sr2 = [entry[1] for entry in fnc_sr2]
-        groups_sr2 = [entry[2] for entry in fnc_sr2]
-
-        data_concat = [entry[0] for entry in fnc_concat]
-        labels_concat = [entry[1] for entry in fnc_concat]
-        groups_concat = [entry[2] for entry in fnc_concat]
-
-        data_add = [entry[0] for entry in fnc_add]
-        labels_add = [entry[1] for entry in fnc_add]
-        groups_add = [entry[2] for entry in fnc_add]
-        
-        
-        
-        # Initialize SimpleImputer
-        imputer = SimpleImputer(strategy='mean')
-
-        # Impute missing values and encode labels for each dataset
-        data_sr1 = imputer.fit_transform(data_sr1)
-        data_sr2 = imputer.fit_transform(data_sr2)
-        data_concat = imputer.fit_transform(data_concat)
-        data_add = imputer.fit_transform(data_add)
-
-
-        np.random.seed(42)
-        random_state = check_random_state(42)
-
-
-        scaler1 = MinMaxScaler()#StandardScaler()
-        data_scaled1 = scaler1.fit_transform(data_sr1)
-
-        scaler2 = MinMaxScaler()#StandardScaler()
-        data_scaled2 = scaler2.fit_transform(data_sr2)
-
-        scaler3 = MinMaxScaler()#StandardScaler()
-        data_scaled3 = scaler3.fit_transform(data_concat)
-
-        scaler4 = MinMaxScaler()#StandardScaler()
-        data_scaled4 = scaler4.fit_transform(data_add)
-
-
-
-        #Run polyssifer for each sampling rate
-        report1 = poly(data_scaled1, np.array(labels_sr1), n_folds=10, scale=True, random_state=random_state,
-                            exclude=['Decision Tree', 'Random Forest', 'Voting', 'Nearest Neighbors', 'Linear SVM'],
-                            scoring='auc', project_name=f'SR1_noise_{scalar}', concurrency=32, verbose=True)
-        
-
-        report2 = poly(data_scaled2, np.array(labels_sr2), n_folds=10, scale=True, random_state=random_state,
-                            exclude=['Decision Tree', 'Random Forest', 'Voting', 'Nearest Neighbors', 'Linear SVM'], 
-                            scoring='auc', project_name=f'SR2_noise_{scalar}', concurrency=32, verbose=True)
-        
-        report3 = poly(data_scaled3, np.array(labels_concat), n_folds=10, scale=True, random_state=random_state,
-                            exclude=['Decision Tree', 'Random Forest', 'Voting', 'Nearest Neighbors', 'Linear SVM'],
-                            scoring='auc', project_name=f'CONCAT_noise_{scalar}', concurrency=32, verbose=True)
-        
-        report4 = poly(data_scaled4, np.array(labels_add), n_folds=10, scale=True, random_state=random_state,
-                            exclude=['Decision Tree', 'Random Forest', 'Voting', 'Nearest Neighbors', 'Linear SVM'],
-                            scoring='auc', project_name=f'CONCAT_noise_{scalar}', concurrency=32, verbose=True)
-        
+            sr2_section = sr2[:, sr2_start_ix:sr2_end_ix]
+            sr2_section_noise = sr2_noise[:, sr2_start_ix:sr2_end_ix]
 
 
 
 
-        #Collect results for saving
-        for classifier in report1.scores.columns.levels[0]:
-            if classifier == 'Voting':
-                continue
 
-            # Append the results to the list as a dictionary
-            res1.append({'graph_no': graph_ix,
-                            'nstd': nstd,
-                            'burnin': burn,
-                            'noise_no': noise_ix,
-                            'snr': SNR,
-                            'scalar': scalar,
-                            'classifier': classifier,
-                            'test_scores': report1.scores[classifier, 'test'], 
-                            'target': report1.target, 
-                            'predictions': np.array(report1.predictions[classifier]).astype(int),
-                            'test_proba': report1.test_proba[classifier]})
 
-            logging.info(report1.scores[classifier, 'test'])
-        
-        for classifier in report2.scores.columns.levels[0]:
-            if classifier == 'Voting':
-                continue
+            sr1_fnc_triu = np.corrcoef(sr1_section)[np.triu_indices(n_regions)]
+            sr1_noise_fnc_triu = np.corrcoef(sr1_section_noise)[np.triu_indices(n_regions)]    #TODO: debugging
 
-            # Append the results to the list as a dictionary
-            res2.append({'graph_no': graph_ix,
-                        'nstd': nstd,
-                        'burnin': burn,
-                        'noise_no': noise_ix,
-                        'snr': SNR,
-                        'scalar': scalar,
-                        'classifier': classifier,
-                        'test_scores': report2.scores[classifier, 'test'], 
-                        'target': report2.target, 
-                        'predictions': np.array(report2.predictions[classifier]).astype(int), 
-                        'test_proba': report2.test_proba[classifier]})
+            sr2_fnc_triu = np.corrcoef(sr2_section)[np.triu_indices(n_regions)]
+            sr2_noise_fnc_triu = np.corrcoef(sr2_section_noise)[np.triu_indices(n_regions)]
 
-            logging.info(report2.scores[classifier, 'test'])
-        
-        for classifier in report3.scores.columns.levels[0]:
-            if classifier == 'Voting':
-                continue
+            concat_sr1_sr2 = np.concatenate((sr1_fnc_triu , sr2_fnc_triu))
+            concat_sr1_sr2_noise = np.concatenate((sr1_noise_fnc_triu , sr2_noise_fnc_triu))
 
-            # Append the results to the list as a dictionary
-            res3.append({'graph_no': graph_ix,
-                        'nstd': nstd,
-                        'burnin': burn,
-                        'noise_no': noise_ix,
-                        'snr': SNR,
-                        'scalar': scalar,
-                        'classifier': classifier,
-                        'test_scores': report3.scores[classifier, 'test'], 
-                        'target': report3.target, 
-                        'predictions': np.array(report3.predictions[classifier]).astype(int), 
-                        'test_proba': report3.test_proba[classifier]})
+            add_sr1_sr2 = sr1_fnc_triu + sr2_fnc_triu
+            add_sr1_sr2_noise = sr1_noise_fnc_triu + sr2_noise_fnc_triu
+
+
+            sr1_data.append({'subject'          : subject, 
+                                'SR1_Window'    : sr1_fnc_triu, 
+                                'target'        : '0'})
+            sr1_data.append({'subject'          : subject, 
+                            'SR1_Window'        : sr1_noise_fnc_triu, 
+                            'target'            : '1'})
             
-            logging.info(report3.scores[classifier, 'test'])
-        
-        for classifier in report4.scores.columns.levels[0]:
-            if classifier == 'Voting':
-                continue
+            sr2_data.append({'subject'         : subject,
+                                'SR2_Window'   : sr2_fnc_triu, 
+                                'target'       : '0'})
+            sr2_data.append({'subject'         : subject,
+                                'SR2_Window'   : sr2_noise_fnc_triu, 
+                                'target'       : '1'})
+            
+            concat_data.append({'subject'          : subject, 
+                                'Concat_Window'    : concat_sr1_sr2,
+                            'target'               : '0'})
+            concat_data.append({'subject'          : subject, 
+                                'Concat_Window'    : concat_sr1_sr2_noise,
+                                'target'           : '1'})
+            
+            add_data.append({'subject'             : subject,
+                            'Add_Window'           : add_sr1_sr2,
+                            'target'               : '0'})
+            add_data.append({'subject'             : subject,
+                            'Add_Window'           : add_sr1_sr2_noise,
+                            'target'               : '1'})
+            
+            sr1_start_ix += sr1_stride
+            sr1_end_ix = sr1_end_ix + sr1_stride
+                
+            sr2_start_ix += sr2_stride
+            sr2_end_ix = sr2_end_ix + sr2_stride
 
-            # Append the results to the list as a dictionary
-            res4.append({'graph_no': graph_ix,
-                        'nstd': nstd,
-                        'burnin': burn,
-                        'noise_no': noise_ix,
-                        'snr': SNR,
-                        'scalar': scalar,
-                        'classifier': classifier,
-                        'test_scores': report4.scores[classifier, 'test'], 
-                        'target': report4.target, 
-                        'predictions': np.array(report4.predictions[classifier]).astype(int), 
-                        'test_proba': report4.test_proba[classifier]})
 
 
-            logging.info(report4.scores[classifier, 'test'])
+    sr1_df = pd.DataFrame(sr1_data)
+    sr2_df = pd.DataFrame(sr2_data)
+    concat_df = pd.DataFrame(concat_data)
+    add_df = pd.DataFrame(add_data)
 
-#Populate dataframes and save
-df1 = pd.DataFrame(res1)
-df2 = pd.DataFrame(res2)
-df3 = pd.DataFrame(res3)
-df4 = pd.DataFrame(res4)
+
+
+
+    #############################
+    #   SR1
+    #############################
+    logging.info(f'\n\n\n\n START POLYSSIFIER FOR SR1 snr {SNR} noise_ix {noise_ix}')
+    group_sr1 = sr1_df['subject']
+    y_sr1 = sr1_df['target']
+    y_sr1 = np.array([str(entry) for entry in y_sr1])
+    X_sr1 = sr1_df['SR1_Window']
+    X_sr1 = np.array([np.array(entry) for entry in X_sr1])
+
+    res1 = []
+    report1 = poly(data=X_sr1, label=y_sr1, groups=group_sr1, n_folds=n_folds, scale=True, concurrency=n_threads, save=False, 
+                    exclude=['Decision Tree', 'Random Forest', 'Voting', 'Nearest Neighbors', 'Linear SVM'],  scoring='auc')
+
+    for classifier in report1.scores.columns.levels[0]:
+                if classifier == 'Voting':
+                    continue
+
+                res1.append({'graph_no': graph_ix,
+                                'nstd': nstd,
+                                'burnin': burn,
+                                'noise_no': noise_ix,
+                                'snr': SNR,
+                                'classifier': classifier,
+                                'test_scores': report1.scores[classifier, 'test'], 
+                                'target': report1.target, 
+                                'predictions': np.array(report1.predictions[classifier]).astype(int),
+                                'test_proba': report1.test_proba[classifier]})
+
+                logging.info(report1.scores[classifier, 'test'])
+
+
+
+    #############################
+    #   SR2
+    #############################
+    logging.info(f'\n\n\n\n START POLYSSIFIER FOR SR2 snr {SNR} noise_ix {noise_ix}')
+    group_sr2 = sr2_df['subject']
+    y_sr2 = sr2_df['target']
+    y_sr2 = np.array([str(entry) for entry in y_sr2])
+    X_sr2 = sr2_df['SR2_Window']
+    X_sr2 = np.array([np.array(entry) for entry in X_sr2])
+
+    res2 = []
+    report2 = poly(data=X_sr2, label=y_sr2, groups=group_sr2, n_folds=n_folds, scale=True, concurrency=n_threads, save=False, 
+                    exclude=['Decision Tree', 'Random Forest', 'Voting', 'Nearest Neighbors', 'Linear SVM'],  scoring='auc')
+
+    for classifier in report2.scores.columns.levels[0]:                                                                                         # iterate through all classifiers in the report
+                if classifier == 'Voting':
+                    continue
+
+                res2.append({'graph_no': graph_ix,                                                                                                      # save the SR1 results to a dict for results dataframe
+                                'nstd': nstd,
+                                'burnin': burn,
+                                'noise_no': noise_ix,
+                                'snr': SNR,
+                                'classifier': classifier,
+                                'test_scores': report2.scores[classifier, 'test'], 
+                                'target': report2.target, 
+                                'predictions': np.array(report2.predictions[classifier]).astype(int),
+                                'test_proba': report2.test_proba[classifier]})
+
+                logging.info(report2.scores[classifier, 'test'])
+
+
+
+    #############################
+    #   CONCAT
+    #############################
+    logging.info(f'\n\n\n\n START POLYSSIFIER FOR CONCAT snr {SNR} noise_ix {noise_ix}')
+    group_concat = concat_df['subject']
+    y_concat = concat_df['target']
+    y_concat = np.array([str(entry) for entry in y_concat])
+    X_concat = concat_df['Concat_Window']
+    X_concat = np.array([np.array(entry) for entry in X_concat])
+
+    res3 = []
+    report3 = poly(data=X_concat, label=y_concat, groups=group_concat, n_folds=n_folds, scale=True, concurrency=n_threads, save=False, 
+                    exclude=['Decision Tree', 'Random Forest', 'Voting', 'Nearest Neighbors', 'Linear SVM'],  scoring='auc')
+
+    for classifier in report3.scores.columns.levels[0]:
+                if classifier == 'Voting':
+                    continue
+
+                res3.append({'graph_no': graph_ix,
+                                'nstd': nstd,
+                                'burnin': burn,
+                                'noise_no': noise_ix,
+                                'snr': SNR,
+                                'classifier': classifier,
+                                'test_scores': report3.scores[classifier, 'test'], 
+                                'target': report3.target, 
+                                'predictions': np.array(report3.predictions[classifier]).astype(int),
+                                'test_proba': report3.test_proba[classifier]})
+
+                logging.info(report3.scores[classifier, 'test'])
+
+
+    #############################
+    #   ADD
+    #############################
+    logging.info(f'\n\n\n\n START POLYSSIFIER FOR ADD snr {SNR} noise_ix {noise_ix}')
+    group_add = add_df['subject']
+    y_add = add_df['target']
+    y_add = np.array([str(entry) for entry in y_add])
+    X_add = add_df['Add_Window']
+    X_add = np.array([np.array(entry) for entry in X_add])
+
+    res4 = []
+    report4 = poly(data=X_add, label=y_add, groups=group_add, n_folds=n_folds, scale=True, concurrency=n_threads, save=False, 
+                    exclude=['Decision Tree', 'Random Forest', 'Voting', 'Nearest Neighbors', 'Linear SVM'],  scoring='auc')
+
+    for classifier in report4.scores.columns.levels[0]:                                                                                         # iterate through all classifiers in the report
+                if classifier == 'Voting':
+                    continue
+
+                res4.append({'graph_no': graph_ix,                                                                                                      # save the SR1 results to a dict for results dataframe
+                                'nstd': nstd,
+                                'burnin': burn,
+                                'noise_no': noise_ix,
+                                'snr': SNR,
+                                'classifier': classifier,
+                                'test_scores': report4.scores[classifier, 'test'], 
+                                'target': report4.target, 
+                                'predictions': np.array(report4.predictions[classifier]).astype(int),
+                                'test_proba': report4.test_proba[classifier]})
+
+                logging.info(report4.scores[classifier, 'test'])
+
+
+
+
+df1 = pd.DataFrame(res1)  
 df1.to_pickle(f'/data/users2/jwardell1/undersampling-project/HCP/pkl-files/sr1_{SNR}_{graph_ix}.pkl')
+df2 = pd.DataFrame(res2)
 df2.to_pickle(f'/data/users2/jwardell1/undersampling-project/HCP/pkl-files/sr2_{SNR}_{graph_ix}.pkl')
+df3 = pd.DataFrame(res3)
 df3.to_pickle(f'/data/users2/jwardell1/undersampling-project/HCP/pkl-files/concat_{SNR}_{graph_ix}.pkl')
+df4 = pd.DataFrame(res4)
 df4.to_pickle(f'/data/users2/jwardell1/undersampling-project/HCP/pkl-files/add_{SNR}_{graph_ix}.pkl')

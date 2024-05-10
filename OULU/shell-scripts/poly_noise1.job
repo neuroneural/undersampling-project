@@ -1,6 +1,6 @@
 #!/bin/bash
 #SBATCH -n 1
-#SBATCH -c 10
+#SBATCH -c 20
 #SBATCH --mem=32g
 #SBATCH -p qTRD
 #SBATCH --time=01:00:00

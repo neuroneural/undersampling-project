@@ -95,7 +95,7 @@ def genData(A, rate=2, burnin=100, ssize=5000, nstd=0.1):
     return data[:, ::rate]
 
 
-"""
+
 if len(sys.argv) != 4:
     print("Usage: python poly_noise1.py SNR graph_dir graph_ix")
     sys.exit(1)
@@ -108,7 +108,7 @@ graph_ix = int(sys.argv[3])                               # graph number
 SNRs = [0.5, 0.6, 0.7, 0.8, 0.9, 1.0]
 graph_ix = 1002
 graph_dir = '/data/users2/jwardell1/nshor_docker/examples/oulu-project/OULU/g4.pkl'
-
+"""
 
 
 g = np.load(graph_dir, allow_pickle=True)
@@ -129,18 +129,15 @@ NUM_SUBS = 10
 subjects = ['20150210', '20150417', '20150428', '20151110', '20151127', 
             '20150410', '20150421', '20151030', '20151117', '20151204']
 
-num_graphs = 1
-num_noise = 1
-n_folds = 4
-n_threads= 16
+num_graphs = 2
+num_noise = 3
+n_folds = 10
+n_threads= 40
 
 logging.info(f'\t\t\t\tGraph Number {graph_ix} of {num_graphs}')
 
 for noise_ix in range(num_noise):
-    scalar = 10**(SNR/-2)
-    logging.info(f'\t\t\t\tSNR {SNR}')
-    logging.info(f'\t\t\t\tscalar {scalar}')
-
+    #for SNR in SNRs:
 
     num_converged = 0
     converged_subjects = []
@@ -154,7 +151,7 @@ for noise_ix in range(num_noise):
                 W = create_stable_weighted_matrix(A, threshold=threshold, powers=[2])
                 var_noise = genData(W, rate=u_rate, burnin=burn, ssize=NOISE_SIZE, nstd=nstd)
                 var_noise = zscore(var_noise, axis=1)
-                noises[subject] = var_noise*scalar
+                noises[subject] = var_noise
                 num_converged += 1
                 converged_subjects.append(subject)
 
@@ -204,7 +201,7 @@ for noise_ix in range(num_noise):
         tr100_tc_zs_dt = detrend(tr100_tc_zs, axis=1)
         tr2150_tc_zs_dt = detrend(tr2150_tc_zs, axis=1)
 
-        noise_tr100 = noises[subject][:,::2]/2 #####DEBUG TODO: check later
+        noise_tr100 = noises[subject][:,::2]
         noise_tr2150 = noises[subject][:,::33]
 
         tr100_tc_zs_dt_noise = tr100_tc_zs_dt+noise_tr100
@@ -215,12 +212,29 @@ for noise_ix in range(num_noise):
                         'TR100_Noise'             : noise_tr100, 
                         'TR2150_Noise'            : noise_tr2150, 
                         'TR100_Timecourse'        : tr100_tc_zs_dt, 
-                        'TR2150_Timecourse'       : tr2150_tc_zs_dt, 
-                        'TR100_Timecourse_Noise'  : tr100_tc_zs_dt_noise, 
-                        'TR2150_Timecourse_Noise' : tr2150_tc_zs_dt_noise})
+                        'TR2150_Timecourse'       : tr2150_tc_zs_dt
+                        })
         
-    data_df = pd.DataFrame(all_data)
+    data_df = pd.DataFrame(all_data) 
 
+    xTx_tr100 = np.sum(np.square(data_df['TR100_Timecourse'].mean()))
+    nTn_tr100 = np.sum(np.square(data_df['TR100_Noise'].mean()))
+    scalar_tr100 = (xTx_tr100 / nTn_tr100) * 10**(SNR/-2)
+
+    xTx_tr2150 = np.sum(np.square(data_df['TR2150_Timecourse'].mean()))
+    nTn_tr2150 = np.sum(np.square(data_df['TR2150_Noise'].mean()))
+    scalar_tr2150 = (xTx_tr2150 / nTn_tr2150) * 10**(SNR/-2)
+
+
+    logging.info(f'\t\t\t\tSNR {SNR}')
+    logging.info(f'\t\t\t\tscalar_tr100 {scalar_tr100}')
+    logging.info(f'\t\t\t\tscalar1_tr2150 {scalar_tr2150}')
+
+    data_df['TR100_Noise'] = data_df['TR100_Noise'].multiply(scalar_tr100)
+    data_df['TR2150_Noise'] = data_df['TR2150_Noise'].multiply(scalar_tr2150)
+
+    data_df['TR100_Timecourse_Noise'] = data_df['TR100_Noise'] + data_df['TR100_Timecourse']
+    data_df['TR2150_Timecourse_Noise'] = data_df['TR2150_Noise'] + data_df['TR2150_Timecourse']
 
     tr100_data = []
     tr2150_data = []
@@ -267,7 +281,7 @@ for noise_ix in range(num_noise):
 
 
             tr100_fnc_triu = np.corrcoef(tr100_section)[np.triu_indices(n_regions)]
-            tr100_noise_fnc_triu = np.corrcoef(tr100_section_noise)[np.triu_indices(n_regions)]
+            tr100_noise_fnc_triu = np.corrcoef(tr100_section_noise)[np.triu_indices(n_regions)]   #TODO: debug
 
             tr2150_fnc_triu = np.corrcoef(tr2150_section)[np.triu_indices(n_regions)]
             tr2150_noise_fnc_triu = np.corrcoef(tr2150_section_noise)[np.triu_indices(n_regions)]
@@ -280,11 +294,11 @@ for noise_ix in range(num_noise):
 
 
             tr100_data.append({'subject'          : subject, 
-                            'TR100ms_Window'   : tr100_fnc_triu, 
-                            'target'           : '0'})
+                               'TR100ms_Window'   : tr100_fnc_triu, 
+                               'target'           : '0'})
             tr100_data.append({'subject'          : subject, 
-                            'TR100ms_Window'   : tr100_noise_fnc_triu, 
-                            'target'           : '1'})
+                               'TR100ms_Window'   : tr100_noise_fnc_triu, 
+                               'target'           : '1'})
             
             tr2150_data.append({'subject'         : subject,
                                 'TR2150ms_Window' : tr2150_fnc_triu, 
@@ -294,18 +308,18 @@ for noise_ix in range(num_noise):
                                 'target'          : '1'})
             
             concat_data.append({'subject'          : subject, 
-                                'Concat_Window'   : concat_tr100_tr2150,
-                            'target'            : '0'})
+                                 'Concat_Window'   : concat_tr100_tr2150,
+                               'target'            : '0'})
             concat_data.append({'subject'          : subject, 
                                 'Concat_Window'    : concat_tr100_tr2150_noise,
                                 'target'           : '1'})
             
             add_data.append({'subject'             : subject,
-                            'Add_Window'         : add_tr100_tr2150,
-                            'target'             : '0'})
+                              'Add_Window'         : add_tr100_tr2150,
+                              'target'             : '0'})
             add_data.append({'subject'             : subject,
-                            'Add_Window'         : add_tr100_tr2150_noise,
-                            'target'             : '1'})
+                              'Add_Window'         : add_tr100_tr2150_noise,
+                              'target'             : '1'})
             
             tr100_start_ix += tr100_stride
             tr100_end_ix = tr100_end_ix + tr100_stride
@@ -326,7 +340,7 @@ for noise_ix in range(num_noise):
     #############################
     #   TR=100ms
     #############################
-    logging.info(f'\n\n\n\n START POLYSSIFIER FOR TR=100ms snr {SNR} scalar {scalar} noise_ix {noise_ix}')
+    logging.info(f'\n\n\n\n START POLYSSIFIER FOR TR=100ms snr {SNR} noise_ix {noise_ix}')
     group_tr100 = tr100_df['subject']
     y_tr100 = tr100_df['target']
     y_tr100 = np.array([str(entry) for entry in y_tr100])
@@ -346,7 +360,6 @@ for noise_ix in range(num_noise):
                                 'burnin': burn,
                                 'noise_no': noise_ix,
                                 'snr': SNR,
-                                'scalar': scalar,
                                 'classifier': classifier,
                                 'test_scores': report1.scores[classifier, 'test'], 
                                 'target': report1.target, 
@@ -361,7 +374,7 @@ for noise_ix in range(num_noise):
     #############################
     #   TR=2150ms
     #############################
-    logging.info(f'\n\n\n\n START POLYSSIFIER FOR TR=2150ms snr {SNR} scalar {scalar} noise_ix {noise_ix}')
+    logging.info(f'\n\n\n\n START POLYSSIFIER FOR TR=2150ms snr {SNR} noise_ix {noise_ix}')
     group_tr2150 = tr2150_df['subject']
     y_tr2150 = tr2150_df['target']
     y_tr2150 = np.array([str(entry) for entry in y_tr2150])
@@ -381,7 +394,6 @@ for noise_ix in range(num_noise):
                                 'burnin': burn,
                                 'noise_no': noise_ix,
                                 'snr': SNR,
-                                'scalar': scalar,
                                 'classifier': classifier,
                                 'test_scores': report2.scores[classifier, 'test'], 
                                 'target': report2.target, 
@@ -397,7 +409,7 @@ for noise_ix in range(num_noise):
     #############################
     #   CONCAT
     #############################
-    logging.info(f'\n\n\n\n START POLYSSIFIER FOR CONCAT snr {SNR} scalar {scalar} noise_ix {noise_ix}')
+    logging.info(f'\n\n\n\n START POLYSSIFIER FOR CONCAT snr {SNR} noise_ix {noise_ix}')
     group_concat = concat_df['subject']
     y_concat = concat_df['target']
     y_concat = np.array([str(entry) for entry in y_concat])
@@ -408,16 +420,15 @@ for noise_ix in range(num_noise):
     report3 = poly(data=X_concat, label=y_concat, groups=group_concat, n_folds=n_folds, scale=True, concurrency=n_threads, save=False, 
                     exclude=['Decision Tree', 'Random Forest', 'Voting', 'Nearest Neighbors', 'Linear SVM'],  scoring='auc')
 
-    for classifier in report3.scores.columns.levels[0]:                                                                                         # iterate through all classifiers in the report
+    for classifier in report3.scores.columns.levels[0]:
                 if classifier == 'Voting':
                     continue
 
-                res3.append({'graph_no': graph_ix,                                                                                                      # save the SR1 results to a dict for results dataframe
+                res3.append({'graph_no': graph_ix,
                                 'nstd': nstd,
                                 'burnin': burn,
                                 'noise_no': noise_ix,
                                 'snr': SNR,
-                                'scalar': scalar,
                                 'classifier': classifier,
                                 'test_scores': report3.scores[classifier, 'test'], 
                                 'target': report3.target, 
@@ -434,7 +445,7 @@ for noise_ix in range(num_noise):
     #############################
     #   ADD
     #############################
-    logging.info(f'\n\n\n\n START POLYSSIFIER FOR ADD snr {SNR} scalar {scalar} noise_ix {noise_ix}')
+    logging.info(f'\n\n\n\n START POLYSSIFIER FOR ADD snr {SNR} noise_ix {noise_ix}')
     group_add = add_df['subject']
     y_add = add_df['target']
     y_add = np.array([str(entry) for entry in y_add])
@@ -454,7 +465,6 @@ for noise_ix in range(num_noise):
                                 'burnin': burn,
                                 'noise_no': noise_ix,
                                 'snr': SNR,
-                                'scalar': scalar,
                                 'classifier': classifier,
                                 'test_scores': report4.scores[classifier, 'test'], 
                                 'target': report4.target, 
