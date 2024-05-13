@@ -127,16 +127,17 @@ nstd = 1.0
 burn = 100
 threshold = 0.0001
 
-
+np.random.seed(42)
 NOISE_SIZE = 1200
-#subjects = np.loadtxt("/data/users2/jwardell1/undersampling-project/HCP/txt-files/subjects.txt", dtype=str)
-subjects = np.loadtxt("/data/users2/jwardell1/undersampling-project/HCP/txt-files/subjects_dbg.txt", dtype=str)
+subjects = np.loadtxt("/data/users2/jwardell1/undersampling-project/HCP/txt-files/subjects.txt", dtype=str)
+rand_sub_ix = np.random.choice(len(subjects), 10)
+subjects = subjects[rand_sub_ix]
 NUM_SUBS = len(subjects)
 
-num_graphs = 1
-num_noise = 1
-n_folds = 4
-n_threads= 16
+num_graphs = 2
+num_noise = 3
+n_folds = 5
+n_threads= 20
 
 
 
@@ -176,10 +177,12 @@ for noise_ix in range(num_noise):
     
     all_data = []
 
-    #tc_filepath = '/data/users2/jwardell1/undersampling-project/HCP/txt-files/tc_data.txt'
-    tc_filepath = '/data/users2/jwardell1/undersampling-project/HCP/txt-files/tc_data_dbg.txt'
+    tc_filepath = '/data/users2/jwardell1/undersampling-project/HCP/txt-files/tc_data.txt'
+
     with open(tc_filepath, 'r') as tc_data:
-        lines = tc_data.readlines()
+        lines = np.array(tc_data.readlines())
+
+    lines = lines[rand_sub_ix]
 
     for i in range(len(lines)):
         
@@ -220,17 +223,13 @@ for noise_ix in range(num_noise):
         
     data_df = pd.DataFrame(all_data)
 
-
-
-
-
     xTx_sr1 = np.sum(np.square(data_df['SR1_Timecourse'].mean()))
     nTn_sr1 = np.sum(np.square(data_df['SR1_Noise'].mean()))
-    scalar_sr1 = (xTx_sr1 / nTn_sr1) * 10**(SNR/-2)
+    scalar_sr1 = ((xTx_sr1 / nTn_sr1)**0.5) / (10**(SNR/2))
 
     xTx_sr2 = np.sum(np.square(data_df['SR2_Timecourse'].mean()))
     nTn_sr2 = np.sum(np.square(data_df['SR2_Noise'].mean()))
-    scalar_sr2 = (xTx_sr2 / nTn_sr2) * 10**(SNR/-2)
+    scalar_sr2 = ((xTx_sr2 / nTn_sr2)**0.5) / (10**(SNR/2))
 
 
     logging.info(f'\t\t\t\tSNR {SNR}')
@@ -243,15 +242,11 @@ for noise_ix in range(num_noise):
     data_df['SR1_Timecourse_Noise'] = data_df['SR1_Noise'] + data_df['SR1_Timecourse']
     data_df['SR2_Timecourse_Noise'] = data_df['SR2_Noise'] + data_df['SR2_Timecourse']
 
-
-
-
-
     sr1_data = []
     sr2_data = []
     add_data = []
     concat_data = []
-
+    
     for subject in subjects:
         sub_row = data_df[data_df['Subject_ID']  == subject]
         logging.info(f'subject {subject}')
