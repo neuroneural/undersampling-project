@@ -129,10 +129,10 @@ NUM_SUBS = 10
 subjects = ['20150210', '20150417', '20150428', '20151110', '20151127', 
             '20150410', '20150421', '20151030', '20151117', '20151204']
 
-num_graphs = 2
+num_graphs = 1
 num_noise = 3
-n_folds = 10
-n_threads= 40
+n_folds = 5
+n_threads= 20
 
 logging.info(f'\t\t\t\tGraph Number {graph_ix} of {num_graphs}')
 
@@ -215,15 +215,15 @@ for noise_ix in range(num_noise):
                         'TR2150_Timecourse'       : tr2150_tc_zs_dt
                         })
         
-    data_df = pd.DataFrame(all_data) 
-
+    data_df = pd.DataFrame(all_data)
+    
     xTx_tr100 = np.sum(np.square(data_df['TR100_Timecourse'].mean()))
     nTn_tr100 = np.sum(np.square(data_df['TR100_Noise'].mean()))
-    scalar_tr100 = (xTx_tr100 / nTn_tr100) * 10**(SNR/-2)
+    scalar_tr100 = ((xTx_tr100 / nTn_tr100)**0.5) / (10**(SNR/2)) 
 
     xTx_tr2150 = np.sum(np.square(data_df['TR2150_Timecourse'].mean()))
     nTn_tr2150 = np.sum(np.square(data_df['TR2150_Noise'].mean()))
-    scalar_tr2150 = (xTx_tr2150 / nTn_tr2150) * 10**(SNR/-2)
+    scalar_tr2150 = ((xTx_tr2150 / nTn_tr2150)**0.5) / (10**(SNR/2)) 
 
 
     logging.info(f'\t\t\t\tSNR {SNR}')
