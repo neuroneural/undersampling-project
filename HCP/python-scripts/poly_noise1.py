@@ -110,6 +110,7 @@ graph_ix = int(sys.argv[3])
 
 """
 SNRs = [0.5, 0.6, 0.7, 0.8, 0.9, 1.0]
+SNR = 1
 graph_ix = 1002
 graph_dir = '/data/users2/jwardell1/nshor_docker/examples/hcp-project/HCP/g4.pkl'
 """
@@ -130,14 +131,14 @@ threshold = 0.0001
 np.random.seed(42)
 NOISE_SIZE = 1200
 subjects = np.loadtxt("/data/users2/jwardell1/undersampling-project/HCP/txt-files/subjects.txt", dtype=str)
-rand_sub_ix = np.random.choice(len(subjects), 10)
-subjects = subjects[rand_sub_ix]
+#rand_sub_ix = np.random.choice(len(subjects), 10)
+#subjects = subjects[rand_sub_ix]
 NUM_SUBS = len(subjects)
 
-num_graphs = 2
-num_noise = 3
-n_folds = 5
-n_threads= 20
+num_graphs = 1
+num_noise = 2
+n_folds = 3
+n_threads= 12
 
 
 
@@ -177,24 +178,22 @@ for noise_ix in range(num_noise):
     
     all_data = []
 
-    tc_filepath = '/data/users2/jwardell1/undersampling-project/HCP/txt-files/tc_data.txt'
+    #tc_filepath = '/data/users2/jwardell1/undersampling-project/HCP/txt-files/tc_data.txt'
 
-    with open(tc_filepath, 'r') as tc_data:
-        lines = np.array(tc_data.readlines())
+    #with open(tc_filepath, 'r') as tc_data:
+    #    lines = np.array(tc_data.readlines())
 
-    lines = lines[rand_sub_ix]
+    #lines = lines[rand_sub_ix]
 
-    for i in range(len(lines)):
-        
+    for i in range(NUM_SUBS):
+        subject = subjects[i]
         logging.info(f'loading TC for subject {subject}')
-        filepath_sr1 = lines[i].strip()
+        filepath_sr1 = f'/data/users2/jwardell1/nshor_docker/examples/hcp-project/HCP/{subject}/processed/TCOutMax_{subject}.mat'
         try:
             sr1_tc = scipy.io.loadmat(filepath_sr1)['TCMax']
         
         except:
             continue
-
-        subject = filepath_sr1.split('/')[-3]
 
         if sr1_tc.shape[0] != 53:
             sr1_tc = sr1_tc.T
@@ -208,6 +207,9 @@ for noise_ix in range(num_noise):
 
         sr2_tc_zc_dt = sr1_tc_zc_dt[:,::3]
         logging.info(f'sr2.shape - {sr2_tc_zc_dt.shape}')
+
+        sr1_tc_zc_dt = MinMaxScaler(feature_range=(-1,1)).fit_transform(sr1_tc_zc_dt)
+        sr2_tc_zc_dt = MinMaxScaler(feature_range=(-1,1)).fit_transform(sr2_tc_zc_dt)
 
 
         noise_sr1 = noises[subject]

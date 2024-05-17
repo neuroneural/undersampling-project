@@ -201,6 +201,9 @@ for noise_ix in range(num_noise):
         tr100_tc_zs_dt = detrend(tr100_tc_zs, axis=1)
         tr2150_tc_zs_dt = detrend(tr2150_tc_zs, axis=1)
 
+        tr100_tc_zs_dt = MinMaxScaler(feature_range=(-1,1)).fit_transform(tr100_tc_zs_dt)             #TRY MINMAX SCALING might remove
+        tr2150_tc_zs_dt = MinMaxScaler(feature_range=(-1,1)).fit_transform(tr2150_tc_zs_dt)           #TRY MINMAX SCALING might remove
+
         noise_tr100 = noises[subject][:,::2]
         noise_tr2150 = noises[subject][:,::33]
 
