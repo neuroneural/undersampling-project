@@ -100,19 +100,21 @@ def genData(A, rate=2, burnin=100, ssize=5000, nstd=1):
 
 
 
-if len(sys.argv) != 4:
-    print("Usage: python poly_noise1.py SNR graph_dir graph_ix")
+if len(sys.argv) != 5:
+    print("Usage: python poly_noise1.py SNR graph_dir graph_ix undersampling_factor")
     sys.exit(1)
 
 SNR = float(sys.argv[1])
 graph_dir = sys.argv[2]
 graph_ix = int(sys.argv[3])
+undersampling_factor = int(sys.argv[4])
 
 """
 SNRs = [0.5, 0.6, 0.7, 0.8, 0.9, 1.0]
 SNR = 1
 graph_ix = 1002
 graph_dir = '/data/users2/jwardell1/nshor_docker/examples/hcp-project/HCP/g4.pkl'
+undersampling_factor = 3
 """
 
 g = np.load(graph_dir, allow_pickle=True)
@@ -135,11 +137,10 @@ subjects = np.loadtxt("/data/users2/jwardell1/undersampling-project/HCP/txt-file
 #subjects = subjects[rand_sub_ix]
 NUM_SUBS = len(subjects)
 
-num_graphs = 1
-num_noise = 2
-n_folds = 3
-n_threads= 12
-
+num_graphs = 3
+num_noise = 5
+n_folds = 10
+n_threads= 40
 
 
 logging.info(f'\t\t\t\tGraph Number {graph_ix} of {num_graphs}')
@@ -205,7 +206,7 @@ for noise_ix in range(num_noise):
         sr1_tc_zc = zscore(sr1_tc, axis=1)
         sr1_tc_zc_dt = scipy.signal.detrend(sr1_tc_zc, axis=1)
 
-        sr2_tc_zc_dt = sr1_tc_zc_dt[:,::3]
+        sr2_tc_zc_dt = sr1_tc_zc_dt[:,::undersampling_factor]
         logging.info(f'sr2.shape - {sr2_tc_zc_dt.shape}')
 
         sr1_tc_zc_dt = MinMaxScaler(feature_range=(-1,1)).fit_transform(sr1_tc_zc_dt)
@@ -213,7 +214,7 @@ for noise_ix in range(num_noise):
 
 
         noise_sr1 = noises[subject]
-        noise_sr2 = noises[subject][:,::3]
+        noise_sr2 = noises[subject][:,::undersampling_factor]
 
         all_data.append({'Subject_ID'             : str(subject), 
                         'VAR_Noise'               : noises[subject], 
@@ -478,10 +479,10 @@ for noise_ix in range(num_noise):
 
 
 df1 = pd.DataFrame(res1)  
-df1.to_pickle(f'/data/users2/jwardell1/undersampling-project/HCP/pkl-files/sr1_{SNR}_{graph_ix}.pkl')
+df1.to_pickle(f'/data/users2/jwardell1/undersampling-project/HCP/pkl-files/us-{undersampling_factor}/sr1_{SNR}_{graph_ix}.pkl')
 df2 = pd.DataFrame(res2)
-df2.to_pickle(f'/data/users2/jwardell1/undersampling-project/HCP/pkl-files/sr2_{SNR}_{graph_ix}.pkl')
+df2.to_pickle(f'/data/users2/jwardell1/undersampling-project/HCP/pkl-files/us-{undersampling_factor}/sr2_{SNR}_{graph_ix}.pkl')
 df3 = pd.DataFrame(res3)
-df3.to_pickle(f'/data/users2/jwardell1/undersampling-project/HCP/pkl-files/concat_{SNR}_{graph_ix}.pkl')
+df3.to_pickle(f'/data/users2/jwardell1/undersampling-project/HCP/pkl-files/us-{undersampling_factor}/concat_{SNR}_{graph_ix}.pkl')
 df4 = pd.DataFrame(res4)
-df4.to_pickle(f'/data/users2/jwardell1/undersampling-project/HCP/pkl-files/add_{SNR}_{graph_ix}.pkl')
+df4.to_pickle(f'/data/users2/jwardell1/undersampling-project/HCP/pkl-files/us-{undersampling_factor}/add_{SNR}_{graph_ix}.pkl')

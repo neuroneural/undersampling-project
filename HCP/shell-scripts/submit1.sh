@@ -4,7 +4,7 @@ paths_file=/data/users2/jwardell1/undersampling-project/HCP/txt-files/paths_grap
 project_dir=/data/users2/jwardell1/undersampling-project/HCP/shell-scripts
 
 num_lines=`wc -l <  $paths_file`
-num_total_runs=$(( $num_lines / 3 ))
+num_total_runs=$(( $num_lines / 4 ))
 
 
 startix=0

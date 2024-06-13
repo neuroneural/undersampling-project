@@ -95,20 +95,21 @@ def genData(A, rate=2, burnin=100, ssize=5000, nstd=0.1):
     return data[:, ::rate]
 
 
-
+"""
 if len(sys.argv) != 4:
     print("Usage: python poly_noise1.py SNR graph_dir graph_ix")
     sys.exit(1)
-
 SNR = float(sys.argv[1])                                  # signal to noise ratio
 graph_dir = sys.argv[2]                                   # directory of pre-generated graph
 graph_ix = int(sys.argv[3])                               # graph number
+"""
 
-"""
-SNRs = [0.5, 0.6, 0.7, 0.8, 0.9, 1.0]
-graph_ix = 1002
+
+#SNRs = [0.5, 0.6, 0.7, 0.8, 0.9, 1.0]
+SNR = 2.2
+graph_ix = 6012
 graph_dir = '/data/users2/jwardell1/nshor_docker/examples/oulu-project/OULU/g4.pkl'
-"""
+
 
 
 g = np.load(graph_dir, allow_pickle=True)
@@ -130,9 +131,9 @@ subjects = ['20150210', '20150417', '20150428', '20151110', '20151127',
             '20150410', '20150421', '20151030', '20151117', '20151204']
 
 num_graphs = 1
-num_noise = 3
-n_folds = 5
-n_threads= 20
+num_noise = 1
+n_folds = 2
+n_threads = 1
 
 logging.info(f'\t\t\t\tGraph Number {graph_ix} of {num_graphs}')
 
@@ -352,7 +353,7 @@ for noise_ix in range(num_noise):
 
     res1 = []
     report1 = poly(data=X_tr100, label=y_tr100, groups=group_tr100, n_folds=n_folds, scale=True, concurrency=n_threads, save=False, 
-                    exclude=['Decision Tree', 'Random Forest', 'Voting', 'Nearest Neighbors', 'Linear SVM'],  scoring='auc')
+                    exclude=['Decision Tree', 'Random Forest', 'Voting', 'Nearest Neighbors', 'Linear SVM', 'Multilayer Perceptron'],  scoring='auc', project_name='TR100')
 
     for classifier in report1.scores.columns.levels[0]:
                 if classifier == 'Voting':
@@ -386,7 +387,7 @@ for noise_ix in range(num_noise):
 
     res2 = []
     report2 = poly(data=X_tr2150, label=y_tr2150, groups=group_tr2150, n_folds=n_folds, scale=True, concurrency=n_threads, save=False, 
-                    exclude=['Decision Tree', 'Random Forest', 'Voting', 'Nearest Neighbors', 'Linear SVM'],  scoring='auc')
+                    exclude=['Decision Tree', 'Random Forest', 'Voting', 'Nearest Neighbors', 'Linear SVM', 'Multilayer Perceptron'],  scoring='auc', project_name='TR210')
 
     for classifier in report2.scores.columns.levels[0]:                                                                                         # iterate through all classifiers in the report
                 if classifier == 'Voting':
@@ -421,7 +422,7 @@ for noise_ix in range(num_noise):
 
     res3 = []
     report3 = poly(data=X_concat, label=y_concat, groups=group_concat, n_folds=n_folds, scale=True, concurrency=n_threads, save=False, 
-                    exclude=['Decision Tree', 'Random Forest', 'Voting', 'Nearest Neighbors', 'Linear SVM'],  scoring='auc')
+                    exclude=['Decision Tree', 'Random Forest', 'Voting', 'Nearest Neighbors', 'Linear SVM', 'Multilayer Perceptron'],  scoring='auc', project_name='Concat')
 
     for classifier in report3.scores.columns.levels[0]:
                 if classifier == 'Voting':
@@ -457,7 +458,7 @@ for noise_ix in range(num_noise):
 
     res4 = []
     report4 = poly(data=X_add, label=y_add, groups=group_add, n_folds=n_folds, scale=True, concurrency=n_threads, save=False, 
-                    exclude=['Decision Tree', 'Random Forest', 'Voting', 'Nearest Neighbors', 'Linear SVM'],  scoring='auc')
+                    exclude=['Decision Tree', 'Random Forest', 'Voting', 'Nearest Neighbors', 'Linear SVM', 'Multilayer Perceptron'],  scoring='auc', project_name='Add')
 
     for classifier in report4.scores.columns.levels[0]:                                                                                         # iterate through all classifiers in the report
                 if classifier == 'Voting':

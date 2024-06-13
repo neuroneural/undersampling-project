@@ -1,6 +1,6 @@
 #!/bin/bash
 #SBATCH -n 1
-#SBATCH -c 10
+#SBATCH -c 20
 #SBATCH --mem=32g
 #SBATCH -p qTRD
 #SBATCH --time=3-00:00:00
@@ -27,19 +27,24 @@ conda activate /data/users2/jwardell1/miniconda3/envs/usp
 PATHS_FILE=/data/users2/jwardell1/undersampling-project/HCP/txt-files/paths_graphs
 paths_array=($(cat ${PATHS_FILE}))
 
-snr_ix=$(( 3*$SLURM_ARRAY_TASK_ID ))
+snr_ix=$(( 4*$SLURM_ARRAY_TASK_ID ))
 snr=${paths_array[${snr_ix}]}
 
-graph_ix=$(( 3*$SLURM_ARRAY_TASK_ID + 1 ))
+graph_ix=$(( 4*$SLURM_ARRAY_TASK_ID + 1 ))
 graph_filepath=${paths_array[${graph_ix}]}
 
 
-graph_no=$(( 3*$SLURM_ARRAY_TASK_ID + 2 ))
+graph_no=$(( 4*$SLURM_ARRAY_TASK_ID + 2 ))
 graph_label=${paths_array[${graph_no}]}
+
+
+us_ix=$(( 4*$SLURM_ARRAY_TASK_ID + 3 ))
+us_factor=${paths_array[${us_ix}]}
 
 echo "snr: ${snr}"
 echo "graph_filepath: ${graph_filepath}"
 echo "graph_label: ${graph_label}"
+echo "us_factor: ${us_factor}"
 
 
-python /data/users2/jwardell1/undersampling-project/HCP/python-scripts/poly_noise1.py $snr $graph_filepath $graph_no
+python /data/users2/jwardell1/undersampling-project/HCP/python-scripts/poly_noise1.py $snr $graph_filepath $graph_label $us_factor
