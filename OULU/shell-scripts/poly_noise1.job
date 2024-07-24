@@ -1,6 +1,6 @@
 #!/bin/bash
 #SBATCH -n 1
-#SBATCH -c 10
+#SBATCH -c 2
 #SBATCH --mem=16g
 #SBATCH -p qTRD
 #SBATCH --time=3-00:00:00
@@ -12,6 +12,7 @@
 #SBATCH --mail-user=jwardell1@student.gsu.edu
 #SBATCH --oversubscribe
 
+export TMPDIR=/data/users2/jwardell1/tmp
 
 export PATH=/data/users2/jwardell1/miniconda3/bin:$PATH
 
@@ -23,20 +24,35 @@ eval "$(${CONDA_PATH} shell.bash hook)"
 conda activate /data/users2/jwardell1/miniconda3/envs/usp
 
 
+echo "SLURM_ARRAY_TASK_ID $SLURM_ARRAY_TASK_ID"
+echo "hostname $hostname"
+
+
 #SLURM_ARRAY_TASK_ID=0
 
-PATHS_FILE=/data/users2/jwardell1/undersampling-project/OULU/txt-files/paths_graphs
+PATHS_FILE=/data/users2/jwardell1/undersampling-project/OULU/txt-files/paths_fbirncov
 paths_array=($(cat ${PATHS_FILE}))
 
-snr_ix=$(( 3*$SLURM_ARRAY_TASK_ID ))
+snr_ix=$(( 5*$SLURM_ARRAY_TASK_ID ))
 snr=${paths_array[${snr_ix}]}
+echo "snr $snr"
 
-graph_ix=$(( 3*$SLURM_ARRAY_TASK_ID + 1 ))
+graph_ix=$(( 5*$SLURM_ARRAY_TASK_ID + 1 ))
 graph_filepath=${paths_array[${graph_ix}]}
+echo "graph_filepath $graph_filepath"
 
-
-graph_no=$(( 3*$SLURM_ARRAY_TASK_ID + 2 ))
+graph_no=$(( 5*$SLURM_ARRAY_TASK_ID + 2 ))
 graph_label=${paths_array[${graph_no}]}
+echo "graph_label $graph_label"
+
+covix=$(( 5*$SLURM_ARRAY_TASK_ID + 3 ))
+cov_mat=${paths_array[${covix}]}
+echo "cov_mat $cov_mat"
+
+cholix=$(( 5*$SLURM_ARRAY_TASK_ID + 4 ))
+chol_mat=${paths_array[${cholix}]}
+echo "chol_mat $chol_mat"
 
 
-python /data/users2/jwardell1/undersampling-project/OULU/python-scripts/poly_noise1.py $snr $graph_filepath $graph_label
+echo "python /data/users2/jwardell1/undersampling-project/OULU/python-scripts/poly_noise1.py $snr $graph_filepath $graph_label $cov_mat $chol_mat"
+python /data/users2/jwardell1/undersampling-project/OULU/python-scripts/poly_noise1.py $snr $graph_filepath $graph_label $cov_mat $chol_mat

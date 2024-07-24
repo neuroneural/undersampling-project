@@ -98,24 +98,27 @@ def genData(A, rate=2, burnin=100, ssize=5000, nstd=1):
 
 
 
+"""
 
-
-if len(sys.argv) != 5:
-    print("Usage: python poly_noise1.py SNR graph_dir graph_ix undersampling_factor")
+if len(sys.argv) != 7:
+    print("Usage: python poly_noise1.py SNR graph_dir graph_ix undersampling_factor covariance_matrix L")
     sys.exit(1)
 
 SNR = float(sys.argv[1])
 graph_dir = sys.argv[2]
 graph_ix = int(sys.argv[3])
 undersampling_factor = int(sys.argv[4])
-
+covariance_matrix = np.load(sys.argv[5])
+L = np.load(sys.argv[6])
 """
-SNRs = [0.5, 0.6, 0.7, 0.8, 0.9, 1.0]
+
+SNRs = [2.0, 2.1, 2.2, 2.3, 2.4, 2.5]
 SNR = 1
 graph_ix = 1002
 graph_dir = '/data/users2/jwardell1/nshor_docker/examples/hcp-project/HCP/g4.pkl'
 undersampling_factor = 3
-"""
+L = np.load('/data/users2/jwardell1/cholesky_decomposition.npy')
+covariance_matrix = np.load('/data/users2/jwardell1/covariance_matrix.npy')
 
 g = np.load(graph_dir, allow_pickle=True)
 A = graph2adj(g)
@@ -139,8 +142,8 @@ NUM_SUBS = len(subjects)
 
 num_graphs = 3
 num_noise = 5
-n_folds = 10
-n_threads= 40
+n_folds = 2
+n_threads= 5
 
 
 logging.info(f'\t\t\t\tGraph Number {graph_ix} of {num_graphs}')
@@ -152,26 +155,32 @@ logging.info(f'\t\t\t\tNUM_SUBS {NUM_SUBS}')
 
 #Using the loaded graph, generate a number of noise matrices for all subjects until converged
 for noise_ix in range(num_noise):
-    #for SNR in SNRs:
     num_converged = 0
     converged_subjects = []
     noises = dict()
+    # Take ICA time cources from Neuromark, for a dataset not participating in your work
+    # 1. (Randomly) Permute the order of components, so they are different from the canonical
+    # 2. Compute covariance matrix for this data
+    # 3. Call it `covariance_matrix`
+    # 4. Compute and store `L = np.linalg.cholesky(covariance_matrix)`
     while num_converged < NUM_SUBS:
         for subject in subjects:
-            if subject in converged_subjects:
-                continue
+            mean = np.zeros(covariance_matrix.shape[0])
+            # covariance_matrix # is something you pre-defined for this run
 
-            try:
-                W = create_stable_weighted_matrix(A, threshold=threshold, powers=[2])
-                var_noise = genData(W, rate=u_rate, burnin=burn, ssize=NOISE_SIZE, nstd=nstd)
-                var_noise = zscore(var_noise, axis=1)
-                noises[subject] = var_noise 
-                num_converged += 1
-                converged_subjects.append(subject)
+            # Step 2: Generate white noise
+            white_noise = np.random.multivariate_normal(mean, np.eye(covariance_matrix.shape[0]), size=NOISE_SIZE)
 
-            except Exception as e:
-                print(e)
-                logging.info(f'num converged: {num_converged}')
+            # Step 3: Apply Cholesky decomposition
+            
+            # Step 4: Generate colored noise
+            colored_noise = white_noise @ L.T
+            noises[subject] = colored_noise.T
+            num_converged += 1
+            converged_subjects.append(subject)
+
+            
+            logging.info(f'num converged: {num_converged}')
             
 
 
@@ -199,7 +208,7 @@ for noise_ix in range(num_noise):
         if sr1_tc.shape[0] != 53:
             sr1_tc = sr1_tc.T
 
-        if sr1_tc.shape[1] < 1200:
+        if sr1_tc.shape[1] < NOISE_SIZE:
             continue
 
         logging.info(f'sr1.shape - {sr1_tc.shape}')

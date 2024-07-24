@@ -4,3 +4,7 @@
 jobs/
 *.pkl
 poly_*/
+*.json
+*.wandb
+*.pkl
+*.yaml

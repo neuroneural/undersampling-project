@@ -95,13 +95,16 @@ def genData(A, rate=2, burnin=100, ssize=5000, nstd=0.1):
     return data[:, ::rate]
 
 
-"""
-if len(sys.argv) != 4:
-    print("Usage: python poly_noise1.py SNR graph_dir graph_ix")
+
+if len(sys.argv) != 6:
+    print(f"len(sys.argv): {len(sys.argv)}")
+    print("Usage: python poly_noise1.py SNR graph_dir graph_ix covariance_matrix L")
     sys.exit(1)
 SNR = float(sys.argv[1])                                  # signal to noise ratio
 graph_dir = sys.argv[2]                                   # directory of pre-generated graph
 graph_ix = int(sys.argv[3])                               # graph number
+covariance_matrix = np.load(sys.argv[4])                  # covariance matrix to use for noise (precomputed)
+L = np.load(sys.argv[5])                                  # cholesky decomposition of covariance matrix (precomputed)
 """
 
 
@@ -109,7 +112,9 @@ graph_ix = int(sys.argv[3])                               # graph number
 SNR = 2.2
 graph_ix = 6012
 graph_dir = '/data/users2/jwardell1/nshor_docker/examples/oulu-project/OULU/g4.pkl'
-
+L = np.load('/data/users2/jwardell1/cholesky_decomposition.npy')
+covariance_matrix = np.load('/data/users2/jwardell1/covariance_matrix.npy')
+"""
 
 
 g = np.load(graph_dir, allow_pickle=True)
@@ -130,9 +135,11 @@ NUM_SUBS = 10
 subjects = ['20150210', '20150417', '20150428', '20151110', '20151127', 
             '20150410', '20150421', '20151030', '20151117', '20151204']
 
+
+
 num_graphs = 1
 num_noise = 1
-n_folds = 2
+n_folds = 10
 n_threads = 1
 
 logging.info(f'\t\t\t\tGraph Number {graph_ix} of {num_graphs}')
@@ -140,25 +147,33 @@ logging.info(f'\t\t\t\tGraph Number {graph_ix} of {num_graphs}')
 for noise_ix in range(num_noise):
     #for SNR in SNRs:
 
+    
     num_converged = 0
     converged_subjects = []
     noises = dict()
+    # Take ICA time cources from Neuromark, for a dataset not participating in your work
+    # 1. (Randomly) Permute the order of components, so they are different from the canonical
+    # 2. Compute covariance matrix for this data
+    # 3. Call it `covariance_matrix`
+    # 4. Compute and store `L = np.linalg.cholesky(covariance_matrix)`
     while num_converged < NUM_SUBS:
         for subject in subjects:
-            if subject in converged_subjects:
-                continue
+            mean = np.zeros(covariance_matrix.shape[0])
+            # covariance_matrix # is something you pre-defined for this run
 
-            try:
-                W = create_stable_weighted_matrix(A, threshold=threshold, powers=[2])
-                var_noise = genData(W, rate=u_rate, burnin=burn, ssize=NOISE_SIZE, nstd=nstd)
-                var_noise = zscore(var_noise, axis=1)
-                noises[subject] = var_noise
-                num_converged += 1
-                converged_subjects.append(subject)
+            # Step 2: Generate white noise
+            white_noise = np.random.multivariate_normal(mean, np.eye(covariance_matrix.shape[0]), size=NOISE_SIZE)
 
-            except Exception as e:
-                print(e)
-                logging.info(f'num converged: {num_converged}')
+            # Step 3: Apply Cholesky decomposition
+
+            # Step 4: Generate colored noise
+            colored_noise = white_noise @ L.T
+            noises[subject] = colored_noise.T
+            num_converged += 1
+            converged_subjects.append(subject)
+
+            
+            logging.info(f'num converged: {num_converged}')
 
 
 
@@ -353,7 +368,7 @@ for noise_ix in range(num_noise):
 
     res1 = []
     report1 = poly(data=X_tr100, label=y_tr100, groups=group_tr100, n_folds=n_folds, scale=True, concurrency=n_threads, save=False, 
-                    exclude=['Decision Tree', 'Random Forest', 'Voting', 'Nearest Neighbors', 'Linear SVM', 'Multilayer Perceptron'],  scoring='auc', project_name='TR100')
+                    exclude=['Decision Tree', 'Random Forest', 'Voting', 'Nearest Neighbors', 'Linear SVM'],  scoring='auc', project_name='TR100')
 
     for classifier in report1.scores.columns.levels[0]:
                 if classifier == 'Voting':
@@ -387,7 +402,7 @@ for noise_ix in range(num_noise):
 
     res2 = []
     report2 = poly(data=X_tr2150, label=y_tr2150, groups=group_tr2150, n_folds=n_folds, scale=True, concurrency=n_threads, save=False, 
-                    exclude=['Decision Tree', 'Random Forest', 'Voting', 'Nearest Neighbors', 'Linear SVM', 'Multilayer Perceptron'],  scoring='auc', project_name='TR210')
+                    exclude=['Decision Tree', 'Random Forest', 'Voting', 'Nearest Neighbors', 'Linear SVM'],  scoring='auc', project_name='TR210')
 
     for classifier in report2.scores.columns.levels[0]:                                                                                         # iterate through all classifiers in the report
                 if classifier == 'Voting':
@@ -422,7 +437,7 @@ for noise_ix in range(num_noise):
 
     res3 = []
     report3 = poly(data=X_concat, label=y_concat, groups=group_concat, n_folds=n_folds, scale=True, concurrency=n_threads, save=False, 
-                    exclude=['Decision Tree', 'Random Forest', 'Voting', 'Nearest Neighbors', 'Linear SVM', 'Multilayer Perceptron'],  scoring='auc', project_name='Concat')
+                    exclude=['Decision Tree', 'Random Forest', 'Voting', 'Nearest Neighbors', 'Linear SVM'],  scoring='auc', project_name='Concat')
 
     for classifier in report3.scores.columns.levels[0]:
                 if classifier == 'Voting':
@@ -458,7 +473,7 @@ for noise_ix in range(num_noise):
 
     res4 = []
     report4 = poly(data=X_add, label=y_add, groups=group_add, n_folds=n_folds, scale=True, concurrency=n_threads, save=False, 
-                    exclude=['Decision Tree', 'Random Forest', 'Voting', 'Nearest Neighbors', 'Linear SVM', 'Multilayer Perceptron'],  scoring='auc', project_name='Add')
+                    exclude=['Decision Tree', 'Random Forest', 'Voting', 'Nearest Neighbors', 'Linear SVM'],  scoring='auc', project_name='Add')
 
     for classifier in report4.scores.columns.levels[0]:                                                                                         # iterate through all classifiers in the report
                 if classifier == 'Voting':
