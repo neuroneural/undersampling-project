@@ -4,7 +4,7 @@
 #SBATCH --mem=32g
 #SBATCH -p qTRD
 #SBATCH --time=3-00:00:00
-#SBATCH -J pnhcp
+#SBATCH -J pnhcpF
 #SBATCH -e /data/users2/jwardell1/undersampling-project/jobs/error%A_%a.err
 #SBATCH -o /data/users2/jwardell1/undersampling-project/jobs/out%A_%a.out
 #SBATCH -A psy53c17
@@ -24,27 +24,41 @@ eval "$(${CONDA_PATH} shell.bash hook)"
 conda activate /data/users2/jwardell1/miniconda3/envs/usp
 
 
-PATHS_FILE=/data/users2/jwardell1/undersampling-project/HCP/txt-files/paths_graphs
+echo "SLURM_ARRAY_TASK_ID $SLURM_ARRAY_TASK_ID"
+echo "hostname $hostname"
+
+
+#SLURM_ARRAY_TASK_ID=0
+
+
+PATHS_FILE=/data/users2/jwardell1/undersampling-project/HCP/txt-files/paths_fbirncov
+#PATHS_FILE=/data/users2/jwardell1/undersampling-project/HCP/txt-files/paths_cobrecov
 paths_array=($(cat ${PATHS_FILE}))
 
-snr_ix=$(( 4*$SLURM_ARRAY_TASK_ID ))
+snr_ix=$(( 6*$SLURM_ARRAY_TASK_ID ))
 snr=${paths_array[${snr_ix}]}
+echo "snr $snr"
 
-graph_ix=$(( 4*$SLURM_ARRAY_TASK_ID + 1 ))
+graph_ix=$(( 6*$SLURM_ARRAY_TASK_ID + 1 ))
 graph_filepath=${paths_array[${graph_ix}]}
+echo "graph_filepath $graph_filepath"
 
-
-graph_no=$(( 4*$SLURM_ARRAY_TASK_ID + 2 ))
+graph_no=$(( 6*$SLURM_ARRAY_TASK_ID + 2 ))
 graph_label=${paths_array[${graph_no}]}
+echo "graph_label $graph_label"
 
-
-us_ix=$(( 4*$SLURM_ARRAY_TASK_ID + 3 ))
+us_ix=$(( 6*$SLURM_ARRAY_TASK_ID + 3 ))
 us_factor=${paths_array[${us_ix}]}
+echo "us_factor $us_factor"
 
-echo "snr: ${snr}"
-echo "graph_filepath: ${graph_filepath}"
-echo "graph_label: ${graph_label}"
-echo "us_factor: ${us_factor}"
+covix=$(( 6*$SLURM_ARRAY_TASK_ID + 4 ))
+cov_mat=${paths_array[${covix}]}
+echo "cov_mat $cov_mat"
+
+cholix=$(( 6*$SLURM_ARRAY_TASK_ID + 5 ))
+chol_mat=${paths_array[${cholix}]}
+echo "chol_mat $chol_mat"
 
 
-python /data/users2/jwardell1/undersampling-project/HCP/python-scripts/poly_noise1.py $snr $graph_filepath $graph_label $us_factor
+echo "python /data/users2/jwardell1/undersampling-project/HCP/python-scripts/poly_noise1.py $snr $graph_filepath $graph_label $us_factor $cov_mat $chol_mat"
+python /data/users2/jwardell1/undersampling-project/HCP/python-scripts/poly_noise1.py $snr $graph_filepath $graph_label $us_factor $cov_mat $chol_mat

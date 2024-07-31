@@ -4,7 +4,7 @@
 #SBATCH --mem=16g
 #SBATCH -p qTRD
 #SBATCH --time=3-00:00:00
-#SBATCH -J pnoulu
+#SBATCH -J pnouluC
 #SBATCH -e /data/users2/jwardell1/undersampling-project/jobs/error%A_%a.err
 #SBATCH -o /data/users2/jwardell1/undersampling-project/jobs/out%A_%a.out
 #SBATCH -A psy53c17
@@ -30,7 +30,9 @@ echo "hostname $hostname"
 
 #SLURM_ARRAY_TASK_ID=0
 
-PATHS_FILE=/data/users2/jwardell1/undersampling-project/OULU/txt-files/paths_fbirncov
+
+#PATHS_FILE=/data/users2/jwardell1/undersampling-project/OULU/txt-files/paths_fbirncov
+PATHS_FILE=/data/users2/jwardell1/undersampling-project/OULU/txt-files/paths_cobrecov
 paths_array=($(cat ${PATHS_FILE}))
 
 snr_ix=$(( 5*$SLURM_ARRAY_TASK_ID ))

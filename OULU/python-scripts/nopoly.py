@@ -274,10 +274,10 @@ for SNR in SNRs:
         y_train_add, y_test_add = np.array(y_add)[train_index], np.array(y_add)[test_index]
         y_train_concat, y_test_concat = np.array(y_concat)[train_index], np.array(y_concat)[test_index]
 
-        svm_sr1 = SVC(probability=True)
-        svm_sr2 = SVC(probability=True)
-        svm_add = SVC(probability=True)
-        svm_concat = SVC(probability=True)
+        svm_sr1 = SVC(probability=True, kernel='sigmoid')
+        svm_sr2 = SVC(probability=True, kernel='sigmoid')
+        svm_add = SVC(probability=True, kernel='sigmoid')
+        svm_concat = SVC(probability=True, kernel='sigmoid')
 
         svm_sr1.fit(sr1_train.reshape(len(sr1_train), -1), y_train_tr100)
         svm_sr2.fit(sr2_train.reshape(len(sr2_train), -1), y_train_tr2150)

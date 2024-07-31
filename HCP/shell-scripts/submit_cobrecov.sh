@@ -1,0 +1,20 @@
+#!/bin/bash
+
+paths_file=/data/users2/jwardell1/undersampling-project/HCP/txt-files/paths_cobrecov
+
+project_dir=/data/users2/jwardell1/undersampling-project/HCP/shell-scripts
+
+num_lines=`wc -l <  $paths_file`
+num_args=6
+num_total_runs=$(( $num_lines / $num_args ))
+
+
+startix=0
+endix=$(( $num_total_runs - 1 ))
+batch_size=25
+
+
+watch "rm -rf /data/users2/jwardell1/tmp/pymp-*" & 
+
+sbatch --array=${startix}-${endix}%${batch_size} ${project_dir}/poly_noise.job
+#sbatch --array=${startix}-${endix} ${project_dir}/poly_noise1.job

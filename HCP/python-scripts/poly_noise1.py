@@ -98,7 +98,6 @@ def genData(A, rate=2, burnin=100, ssize=5000, nstd=1):
 
 
 
-"""
 
 if len(sys.argv) != 7:
     print("Usage: python poly_noise1.py SNR graph_dir graph_ix undersampling_factor covariance_matrix L")
@@ -124,6 +123,7 @@ g = np.load(graph_dir, allow_pickle=True)
 A = graph2adj(g)
 u_rate = 1
 
+"""
 
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -142,8 +142,8 @@ NUM_SUBS = len(subjects)
 
 num_graphs = 3
 num_noise = 5
-n_folds = 2
-n_threads= 5
+n_folds = 10
+n_threads= 1
 
 
 logging.info(f'\t\t\t\tGraph Number {graph_ix} of {num_graphs}')
@@ -285,7 +285,7 @@ for noise_ix in range(num_noise):
 
 
         for j in range(n_sections):
-            window_ix = i * n_sections * 2 + j * 2
+            window_ix = i * n_sections * 2 + j * 2 #is this needed?
             
             sr1_section = sr1[:, sr1_start_ix:sr1_end_ix]
             sr1_section_noise = sr1_noise[:, sr1_start_ix:sr1_end_ix]

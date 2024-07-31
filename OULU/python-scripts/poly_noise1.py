@@ -165,6 +165,7 @@ for noise_ix in range(num_noise):
             white_noise = np.random.multivariate_normal(mean, np.eye(covariance_matrix.shape[0]), size=NOISE_SIZE)
 
             # Step 3: Apply Cholesky decomposition
+            #already computed and loaded 
 
             # Step 4: Generate colored noise
             colored_noise = white_noise @ L.T
