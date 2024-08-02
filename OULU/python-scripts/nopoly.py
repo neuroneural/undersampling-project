@@ -10,7 +10,7 @@ from sklearn.metrics import roc_auc_score
 from sklearn.model_selection import StratifiedGroupKFold
 
 
-SNRs = [1.0, 1.1, 1.2, 1.3, 1.4, 1.5, 1.6, 1.7, 1.8, 1.9, 2.0, 2.1, 2.2, 2.3, 2.4, 2.5]
+SNRs = [1.5, 1.6, 1.7, 1.8, 1.9, 2.0, 2.1, 2.2, 2.3, 2.4, 2.5]
 
 undersampling_factor = 1
 L = np.load('/data/users2/jwardell1/cholesky_decomposition.npy')
@@ -274,10 +274,10 @@ for SNR in SNRs:
         y_train_add, y_test_add = np.array(y_add)[train_index], np.array(y_add)[test_index]
         y_train_concat, y_test_concat = np.array(y_concat)[train_index], np.array(y_concat)[test_index]
 
-        svm_sr1 = SVC(probability=True, kernel='sigmoid')
-        svm_sr2 = SVC(probability=True, kernel='sigmoid')
-        svm_add = SVC(probability=True, kernel='sigmoid')
-        svm_concat = SVC(probability=True, kernel='sigmoid')
+        svm_sr1 = SVC(probability=True, kernel='linear')
+        svm_sr2 = SVC(probability=True, kernel='linear')
+        svm_add = SVC(probability=True, kernel='linear')
+        svm_concat = SVC(probability=True, kernel='linear')
 
         svm_sr1.fit(sr1_train.reshape(len(sr1_train), -1), y_train_tr100)
         svm_sr2.fit(sr2_train.reshape(len(sr2_train), -1), y_train_tr2150)

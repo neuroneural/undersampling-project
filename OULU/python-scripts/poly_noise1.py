@@ -287,8 +287,6 @@ for noise_ix in range(num_noise):
 
 
         for j in range(n_sections):
-            window_ix = i * n_sections * 2 + j * 2
-            
             tr100_section = tr100[:, tr100_start_ix:tr100_end_ix]
             tr100_section_noise = tr100_noise[:, tr100_start_ix:tr100_end_ix]
 
@@ -342,10 +340,10 @@ for noise_ix in range(num_noise):
                               'target'             : '1'})
             
             tr100_start_ix += tr100_stride
-            tr100_end_ix = tr100_end_ix + tr100_stride
+            tr100_end_ix = tr100_start_ix + tr100_window_size
                 
             tr2150_start_ix += tr2150_stride
-            tr2150_end_ix = tr2150_end_ix + tr2150_stride
+            tr2150_end_ix = tr2150_start_ix + tr2150_window_size
 
 
 

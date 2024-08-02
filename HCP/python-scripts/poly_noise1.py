@@ -340,10 +340,10 @@ for noise_ix in range(num_noise):
                             'target'               : '1'})
             
             sr1_start_ix += sr1_stride
-            sr1_end_ix = sr1_end_ix + sr1_stride
+            sr1_end_ix = sr1_start_ix + sr1_window_size
                 
             sr2_start_ix += sr2_stride
-            sr2_end_ix = sr2_end_ix + sr2_stride
+            sr2_end_ix = sr2_start_ix + sr2_window_size
 
 
 
