@@ -8,3 +8,8 @@ poly_*/
 *.wandb
 *.pkl
 *.yaml
+OULU/
+HCP/
+mkpths.sh
+submit.sh
+__pycache__/

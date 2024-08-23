@@ -1,0 +1,4 @@
+signal_ds: hcp
+noise_df: fbirn
+kernel: rbf
+noise_iter: 5
