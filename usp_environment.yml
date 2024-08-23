@@ -90,4 +90,4 @@ dependencies:
       - typing-extensions==4.12.2
       - tzdata==2024.1
       - wcwidth==0.2.13
-prefix: /data/users2/jwardell1/miniconda3/envs/usp_fix
+prefix: /data/users2/jwardell1/miniconda3/envs/usp

@@ -39,4 +39,4 @@ dependencies:
       - threadpoolctl==3.5.0
       - thundersvm==0.3.12
       - tzdata==2024.1
-prefix: /data/users2/jwardell1/miniconda3/envs/thundersvm_fix
+prefix: /data/users2/jwardell1/miniconda3/envs/thundersvm
