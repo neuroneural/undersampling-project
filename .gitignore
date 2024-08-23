@@ -13,3 +13,4 @@ HCP/
 mkpths.sh
 submit.sh
 __pycache__/
+*.nfs
