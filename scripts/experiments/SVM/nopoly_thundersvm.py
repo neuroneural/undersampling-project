@@ -114,7 +114,7 @@ def main():
     logging.info(f'Noise Iterations: {num_noise}')
 
     
-    noise_data = scipy.io.loadmat(f'../../assets/data/{noise_dataset}_data.mat')
+    noise_data = scipy.io.loadmat(f'../../../assets/data/{noise_dataset}_data.mat')
     L = noise_data['L']
     covariance_matrix = noise_data['cov_mat']
 
@@ -125,7 +125,7 @@ def main():
         NOISE_SIZE = 1200
         undersampling_rate = 6
 
-    signal_data = pd.read_pickle(f'../../assets/data/{signal_dataset}_data.pkl')
+    signal_data = pd.read_pickle(f'../../../assets/data/{signal_dataset}_data.pkl')
 
     subjects = np.unique(signal_data['subject'])
 
@@ -312,7 +312,7 @@ def main():
                     _, y_test = y[train_index], y[test_index]
 
                     # Load model weights and predict on test data
-                    weights_dir = f'../../assets/model_weights/{signal_dataset}/{kernel_type.lower()}'
+                    weights_dir = f'../../../assets/model_weights/{signal_dataset.lower()}/{kernel_type.lower()}'
                     model_filename = f'{name}_best_model_SNR_{SNR}_{kernel_type.upper()}.pkl'
                     model_path = f'{weights_dir}/{model_filename}'
 
