@@ -39,7 +39,6 @@ def main():
     
     
     args = parser.parse_args()
-
     data_params = {}
 
     lower = 1.5

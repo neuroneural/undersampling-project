@@ -1,17 +1,12 @@
 import logging
 import argparse
-import sys
-
-
 
 import pandas as pd
 import numpy as np
 
 import scipy.io
 
-
-from polyssifier import poly
-
+from utils.polyssifier import poly
 from utils.usp_utils import *
 
 
@@ -33,6 +28,7 @@ def main():
 
     
     args = parser.parse_args()
+    data_params = {}
 
     lower = 1.5
     upper = 2.5
@@ -74,10 +70,14 @@ def main():
     logging.info(f'Noise Iterations: {num_noise}')
     
 
+    data_params['noise_dataset'] = noise_dataset
+    data_params['signal_dataset'] = signal_dataset
+
     signal_data = pd.read_pickle(f'{project_dir}/assets/data/{signal_dataset}_data.pkl')
     noise_data = scipy.io.loadmat(f'{project_dir}/assets/data/{noise_dataset}_data.mat')
 
     subjects = np.unique(signal_data['subject'])
+    data_params['subjects'] = subjects
 
 
     if noise_dataset == "VAR":
@@ -92,6 +92,14 @@ def main():
         logging.debug(f'nstd - {nstd}')
         logging.debug(f'burn - {burn}')
         logging.debug(f'threshold - {threshold}')
+
+
+        data_params['A'] = A
+        data_params['u_rate'] = u_rate
+        data_params['nstd'] = nstd
+        data_params['burn'] = burn
+        data_params['threshold'] = threshold
+
     else:
         L = noise_data['L']
         covariance_matrix = noise_data['cov_mat']
@@ -99,12 +107,20 @@ def main():
         logging.debug(f'L {L}')
         logging.debug(f'covariance_matrix {covariance_matrix}')
 
+        data_params['L'] = L
+        data_params['covariance_matrix'] = covariance_matrix
+
     if signal_dataset == 'OULU':
         undersampling_rate = 1
         NOISE_SIZE = 2961*2
     else: 
         NOISE_SIZE = 1200
         undersampling_rate = 6
+
+    
+
+    data_params['NOISE_SIZE'] = NOISE_SIZE
+    data_params['undersampling_rate'] = undersampling_rate
 
 
     
@@ -122,72 +138,12 @@ def main():
             'add': res4
         }
 
+        data_params['SNR'] = SNR
 
         for noise_ix in range(num_noise):
+
             ################ loading and preprocessing
-            all_data = []
-            noises = {} if noise_dataset != 'VAR' else create_var_noise(A, subjects, threshold, u_rate, burn, NOISE_SIZE, nstd)
-
-
-
-            for subject in subjects:
-                if noise_dataset != 'VAR':
-                    noises[subject] = create_colored_noise(covariance_matrix, L, NOISE_SIZE)
-                    logging.debug(f'computed noise for subject: {subject}')
-                    
-                logging.debug(f'loading timecourse for subject {subject}')
-                if signal_dataset == 'HCP': 
-                    logging.debug('HCP dataset detected during loading')
-                    sr1_tc = signal_data[
-                        signal_data['subject'] == subject
-                    ]['ica_timecourse'].iloc[0]
-                
-
-                else:
-                    logging.debug('OULU dataset detected during loading')
-                    sr1_tc = signal_data[
-                        (signal_data['subject'] == subject) & 
-                        (signal_data['sampling_rate'] == 'TR100')
-                    ]['ica_timecourse'].iloc[0]
-
-                    sr2_tc = signal_data[
-                        (signal_data['subject'] == subject) & 
-                        (signal_data['sampling_rate'] == 'TR2150')
-                    ]['ica_timecourse'].iloc[0]
-
-
-                sr1_tc = preprocess_timecourse(sr1_tc)
-                sr2_tc = preprocess_timecourse(sr2_tc) if signal_dataset == 'OULU' else sr1_tc[:,::undersampling_rate]
-
-                
-                logging.debug(f'subject {subject} SR1 shape - {sr1_tc.shape}')
-                logging.debug(f'subject {subject} SR2 shape - {sr2_tc.shape}')
-
-
-                # sample from noise and scale
-                noise_sr1 = None
-                noise_sr2 = None
-
-                if signal_dataset == 'HCP':
-                    noise_sr1 = scale_noise(noises[subject], sr1_tc, SNR)
-                    noise_sr2 = scale_noise(noises[subject][:,::undersampling_rate], sr2_tc, SNR)
-
-                else:
-                    noise_sr1 = scale_noise(noises[subject][:,::2], sr1_tc, SNR)
-                    noise_sr2 = scale_noise(noises[subject][:,::33], sr2_tc, SNR)
-
-
-                all_data.append(
-                    {
-                        'Subject_ID'             :  subject,
-                        'SR1_Timecourse'         :  sr1_tc,
-                        'SR2_Timecourse'         :  sr2_tc,
-                        'SR1_Timecourse_Noise'   :  noise_sr1 + sr1_tc,
-                        'SR2_Timecourse_Noise'   :  noise_sr2 + sr2_tc
-                    }
-                )
-            ################ end loop over subjects
-
+            all_data = load_timecourses(signal_data, data_params)
 
 
             data_df = pd.DataFrame(all_data)
