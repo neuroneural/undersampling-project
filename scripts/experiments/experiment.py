@@ -8,139 +8,12 @@ import pandas as pd
 import numpy as np
 
 import scipy.io
-from scipy.stats import zscore
-from scipy.signal import detrend
-import scipy.sparse as sp
-from scipy.sparse.linalg import eigs
 
 
 from polyssifier import poly
 
+from utils.usp_utils import *
 
-def scale_noise(n, x, SNR):
-    assert x.shape[0] == 53, 'timecourse dimension 0 should be 53'
-    assert n.shape[0] == 53, 'noise dimension 0 should be 53'
-    xTx = np.sum(np.square(x))
-    nTn = np.sum(np.square(n))
-    c = ((xTx / nTn)**0.5) / (10**(SNR/2)) 
-    scaled_noise = c * n
-    return scaled_noise
-
-def create_colored_noise(cov_mat, L, noise_size):
-    assert cov_mat.shape == (53, 53), 'cov_mat should be 53 x 53 matrix'
-    assert L.shape == (53, 53), 'L should be 53 x 53 matrix'
-    mean = np.zeros(cov_mat.shape[0])
-    white_noise = np.random.multivariate_normal(mean, np.eye(cov_mat.shape[0]), size=noise_size)
-    colored_noise = white_noise @ L.T
-    colored_noise = colored_noise.T
-    colored_noise = zscore(colored_noise, axis=1)
-    colored_noise = detrend(colored_noise, axis=1)
-    return colored_noise
-
-def create_var_noise(A, subjects, threshold, u_rate, burn, NOISE_SIZE, nstd):
-    num_converged = 0
-    converged_subjects = []
-    noises = {}
-    NUM_SUBS = len(subjects)
-    while num_converged < NUM_SUBS:
-        for subject in subjects:
-            if subject in converged_subjects:
-                continue
-
-            try:
-                W = create_stable_weighted_matrix(A, threshold=threshold, powers=[2])
-                var_noise = genData(W, rate=u_rate, burnin=burn, ssize=NOISE_SIZE, nstd=nstd)
-                var_noise = zscore(var_noise, axis=1)
-                noises[subject] = var_noise 
-                num_converged += 1
-                converged_subjects.append(subject)
-                logging.info(f'num converged: {num_converged}/{NUM_SUBS}')
-
-            except Exception as e:
-                print(e)
-    return noises
-
-def preprocess_timecourse(tc_data):
-    assert tc_data.shape[0] == 53, 'timecourse dimension 0 should be 53'
-    data = zscore(tc_data, axis=1)                       
-    data = detrend(data, axis=1)         
-    max_magnitudes = np.max(np.abs(data), axis=1, keepdims=True) 
-    data = data / max_magnitudes
-    return data
-    
-
-def parse_X_y_groups(data_df, name):
-    group = data_df['subject']
-    y = data_df['target']
-    y = np.array([str(entry) for entry in y])
-    X = data_df[f'{name}_Window']
-    X = np.array([np.array(entry) for entry in X])
-    return X, y, group
-
-
-
-def check_matrix_powers(W, A, powers, threshold):
-    for n in powers:
-        W_n = np.linalg.matrix_power(W, n)
-        non_zero_indices = np.nonzero(W_n)
-        if (np.abs(W_n[non_zero_indices]) < threshold).any():
-            return False
-    return True
-
-
-def create_stable_weighted_matrix(
-    A,
-    threshold=0.1,
-    powers=[1, 2, 3, 4],
-    max_attempts=1000,
-    damping_factor=0.99,
-    random_state=None,
-):
-    np.random.seed(
-        random_state
-    )  # Set random seed for reproducibility if provided
-    attempts = 0
-
-    while attempts < max_attempts:
-        # Generate a random matrix with the same sparsity pattern as A
-        random_weights = np.random.randn(*A.shape)
-        weighted_matrix = A * random_weights
-
-        # Convert to sparse format for efficient eigenvalue computation
-        weighted_sparse = sp.csr_matrix(weighted_matrix)
-
-        # Compute the largest eigenvalue in magnitude
-        eigenvalues, _ = eigs(weighted_sparse, k=1, which="LM")
-        max_eigenvalue = np.abs(eigenvalues[0])
-
-        # Scale the matrix so that the spectral radius is slightly less than 1
-        if max_eigenvalue > 0:
-            weighted_matrix *= damping_factor / max_eigenvalue
-            # Check if the powers of the matrix preserve the threshold for non-zero entries of A
-            if check_matrix_powers(weighted_matrix, A, powers, threshold):
-                return weighted_matrix
-
-        attempts += 1
-
-    raise ValueError(
-        f"Unable to create a matrix satisfying the condition after {max_attempts} attempts."
-    )
-
-
-def drawsamplesLG(A, nstd, samples):
-    n = A.shape[0]
-    data = np.zeros([n, samples])
-    data[:, 0] = nstd * np.random.randn(A.shape[0])
-    for i in range(1, samples):
-        data[:, i] = A @ data[:, i - 1] + nstd * np.random.randn(A.shape[0])
-    return data
-
-
-def genData(A, rate=2, burnin=100, ssize=5000, nstd=0.1):
-    Agt = A.copy()
-    data = drawsamplesLG(Agt, samples=burnin + (ssize * rate), nstd=nstd)
-    data = data[:, burnin:]
-    return data[:, ::rate]
 
 
 def main():
@@ -252,7 +125,6 @@ def main():
 
         for noise_ix in range(num_noise):
             ################ loading and preprocessing
-            noises = {}
             all_data = []
             noises = {} if noise_dataset != 'VAR' else create_var_noise(A, subjects, threshold, u_rate, burn, NOISE_SIZE, nstd)
 
@@ -323,78 +195,7 @@ def main():
 
 
             ################ windowing
-            sr1_data = []
-            sr2_data = []
-            add_data = []
-            concat_data = []
-            for subject in subjects:
-                logging.debug(f'begin windowing for subject {subject}')
-
-                
-                sr1 = data_df[data_df['Subject_ID'] == subject]['SR1_Timecourse'].iloc[0]
-                sr1_noise = data_df[data_df['Subject_ID'] == subject]['SR1_Timecourse_Noise'].iloc[0]
-
-                sr2 = data_df[data_df['Subject_ID'] == subject]['SR2_Timecourse'].iloc[0]
-                sr2_noise = data_df[data_df['Subject_ID'] == subject]['SR2_Timecourse_Noise'].iloc[0]
-
-
-                n_regions, n_tp_sr1 = sr1.shape
-                _, n_tp_sr2 = sr2.shape
-
-                sr2_window_size = 100
-                sr2_stride = 1
-                n_sections = 80
-                sr2_start_ix = 0
-                sr2_end_ix = sr2_window_size
-
-                sr1_window_size = int((n_tp_sr1 / n_tp_sr2) * sr2_window_size)
-                sr1_stride = n_tp_sr1 // n_tp_sr2
-                sr1_start_ix = 0
-                sr1_end_ix = sr1_window_size
-
-                for j in range(n_sections):
-                    sr1_section = sr1[:, sr1_start_ix:sr1_end_ix]
-                    sr1_section_noise = sr1_noise[:, sr1_start_ix:sr1_end_ix]
-
-                    sr2_section = sr2[:, sr2_start_ix:sr2_end_ix]
-                    sr2_section_noise = sr2_noise[:, sr2_start_ix:sr2_end_ix]
-
-                    sr1_fnc_triu = np.corrcoef(sr1_section)[np.triu_indices(n_regions)]
-                    sr1_noise_fnc_triu = np.corrcoef(sr1_section_noise)[np.triu_indices(n_regions)]
-
-                    sr2_fnc_triu = np.corrcoef(sr2_section)[np.triu_indices(n_regions)]
-                    sr2_noise_fnc_triu = np.corrcoef(sr2_section_noise)[np.triu_indices(n_regions)]
-
-                    concat_sr1_sr2 = np.concatenate((sr1_fnc_triu , sr2_fnc_triu))
-                    concat_sr1_sr2_noise = np.concatenate((sr1_noise_fnc_triu , sr2_noise_fnc_triu))
-
-                    add_sr1_sr2 = sr1_fnc_triu + sr2_fnc_triu
-                    add_sr1_sr2_noise = sr1_noise_fnc_triu + sr2_noise_fnc_triu
-
-
-                    sr1_data.append({'subject': subject, 'SR1_Window': sr1_fnc_triu, 'target': '0'})
-                    sr1_data.append({'subject': subject, 'SR1_Window': sr1_noise_fnc_triu, 'target': '1'})
-                    
-
-                    sr2_data.append({'subject': subject, 'SR2_Window': sr2_fnc_triu, 'target': '0'})
-                    sr2_data.append({'subject': subject, 'SR2_Window': sr2_noise_fnc_triu, 'target': '1'})
-                    
-
-                    concat_data.append({'subject': subject,'Concat_Window': concat_sr1_sr2,'target': '0' })
-                    concat_data.append({'subject': subject, 'Concat_Window': concat_sr1_sr2_noise,'target': '1'})
-                    
-
-                    add_data.append({'subject': subject,'Add_Window': add_sr1_sr2,'target': '0'})
-                    add_data.append({'subject': subject,'Add_Window': add_sr1_sr2_noise,'target': '1'})
-
-
-                    sr1_start_ix += sr1_stride
-                    sr1_end_ix = sr1_start_ix + sr1_window_size
-                        
-                    sr2_start_ix += sr2_stride
-                    sr2_end_ix = sr2_start_ix + sr2_window_size
-                ################ end loop over window sections
-            ################ end loop over subjects
+            sr1_data, sr2_data, add_data, concat_data = perform_windowing(data_df)
             
 
             X_tr100, y_tr100, group_tr100 = parse_X_y_groups(pd.DataFrame(sr1_data), 'SR1')
@@ -414,6 +215,7 @@ def main():
 
 
             for name, X, y, group in datasets:
+                logging.info(f'run polyssifier for for {name}')
                 report = poly(data=X, label=y, groups=group, n_folds=n_folds, scale=True, concurrency=n_threads, save=False, 
                             exclude=['Decision Tree', 'Random Forest', 'Voting', 'Nearest Neighbors', 'Linear SVM', 'SVM'], scoring='auc', 
                             project_name=name)
@@ -440,14 +242,14 @@ def main():
 
                     logging.info(f'{name} - SNR {SNR} - noise iteration {noise_ix} - scores {scores}')
 
-        pkl_dir = f'{project_dir}/{signal_dataset}/pkl-files' if project_dir != '.' else '.'
+        pkl_dir = f'{project_dir}/{signal_dataset}/pkl-files/{noise_dataset}' if project_dir != '.' else '.'
+        logging.info(f'pkl_dir: {pkl_dir}')
 
         for key, data in results.items():
-            if data != []:
-                df = pd.DataFrame(data)
-                filename = f'{key}_{SNR}_{noise_dataset}_{signal_dataset}.pkl'
-                df.to_pickle(f'{pkl_dir}/{filename}')
-                logging.info(f'saved results for {key} at {pkl_dir}/{filename}')
+            df = pd.DataFrame(data)
+            filename = f'{key}_{SNR}_{noise_dataset}_{signal_dataset}.pkl'
+            df.to_pickle(f'{pkl_dir}/{filename}')
+            logging.info(f'saved results for {key} at {pkl_dir}/{filename}')
 
 if __name__ == "__main__":
     main()

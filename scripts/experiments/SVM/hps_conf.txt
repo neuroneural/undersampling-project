@@ -1,4 +1,3 @@
-signal_ds: hcp
-noise_df: fbirn
+signal_ds: oulu
+noise_df: cobre
 kernel: rbf
-noise_iter: 5

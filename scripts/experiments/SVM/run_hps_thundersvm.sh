@@ -20,25 +20,24 @@ while IFS=: read -r key value; do
     # Store the values in variables
     case "$key" in
         signal_ds) SIGNAL_DS=$value ;;
-        noise_df) NOISE_DF=$value ;;
+        noise_df) NOISE_DS=$value ;;
         kernel) KERNEL=$value ;;
-        noise_iter) NOISE_ITER=$value ;;
-        snr_int) SNR_INT=$value ;;
         *) echo "Unknown key: $key" ;;
     esac
 done < "$CONFIG_FILE"
 
-ARGS="-s '$SIGNAL_DS' -n '$NOISE_DF' -k '$KERNEL' -nn $NOISE_ITER -i $SNR_INT"
+ARGS="-s '$SIGNAL_DS' -n '$NOISE_DS' -k '$KERNEL'"
+echo "${ARGS}"
 
 
 # Name of the screen session
-SCREEN_SESSION_NAME="hps_thundersvm_session_${SIGNAL_DS}"
+SCREEN_SESSION_NAME="hps_thundersvm_session_${SIGNAL_DS}_${NOISE_DS}"
 
 # Path to the Python script
 PYTHON_SCRIPT="hps_thundersvm.py"
 
 # Log file path
-LOG_FILE="hps_thundersvm.log"
+LOG_FILE="hps_thundersvm_${SIGNAL_DS}_${NOISE_DS}.log"
 
 # Start a screen session and run the Python script
 screen -dmS $SCREEN_SESSION_NAME bash -c "
