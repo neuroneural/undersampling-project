@@ -171,13 +171,6 @@ def main():
             }
 
             for name, X, y, group in datasets:
-                """                
-                save_data = {
-                    'sampling_rate' : name,
-                    'snr' : SNR,
-                    'noise_dataset' : noise_dataset,
-                    'signal_dataset' : signal_dataset
-                }"""
                 _, ax = plt.subplots()
                 #plot_cv_indices(sgkf, X, y, group, ax, n_folds, save_data, lw=10)
                 for fold_ix, (train_index, test_index) in enumerate(sgkf.split(X, y, group), start=0):
@@ -200,18 +193,6 @@ def main():
 
                     fold_score = roc_auc_score(y_test, np.array(y_pred))
                     fold_scores.append(fold_score)
-
-                    """                                        
-                    save_data = {
-                        'sampling_rate' : name,
-                        'snr' : SNR,
-                        'fold_ix' : fold_ix,
-                        'test_subs' : set(group[test_index]),
-                        'noise_ix' : noise_ix,
-                        'noise_dataset' : noise_dataset,
-                        'signal_dataset' : signal_dataset
-                    }"""
-                    
 
                     #plot_and_save_confusion_matrix(y_test, y_pred, save_data)
                     
