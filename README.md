@@ -49,6 +49,12 @@ conda env create -f thundersvm_environment.yml
 conda activate thundersvm
 ```
 
+You will need to set the python path in the following way:
+
+```
+PYTHONPATH=./undersampling-project/scripts/
+```
+
 To run an SVM classification experiment, you will need the model weights. You can generate them on your own using a hyper parameter search, or they are available by request. 
 
 To run a hyperparameter search, run the `hps_thundersvm.py` script. Here is its usage:
