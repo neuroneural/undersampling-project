@@ -16,8 +16,9 @@ conda activate usp
 You will need to set the python path in the following way:
 
 ```
-PYTHONPATH=./undersampling-project/scripts/
+PYTHONPATH=<FULL_PATH_TO_REPO>/undersampling-project/scripts/
 ```
+where `FULL_PATH_TO_REPO` is the full path to the repository on your machine.
 
 To run an experiment for MLP, NB, and LR classifiers, run the `experiment.py` script. Here is its usage:
 
@@ -52,8 +53,10 @@ conda activate thundersvm
 You will need to set the python path in the following way:
 
 ```
-PYTHONPATH=./undersampling-project/scripts/
+PYTHONPATH=<FULL_PATH_TO_REPO>/undersampling-project/scripts/
 ```
+where `FULL_PATH_TO_REPO` is the full path to the repository on your machine.
+
 
 To run an SVM classification experiment, you will need the model weights. You can generate them on your own using a hyper parameter search, or they are available by request. 
 
