@@ -10,7 +10,8 @@ poly_*/
 *.yaml
 OULU/
 HCP/
-mkpths.sh
-submit.sh
+mkpths*.sh
+submit*.sh
 __pycache__/
 *.nfs
+confmats/

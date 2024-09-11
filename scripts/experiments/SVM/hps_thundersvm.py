@@ -5,6 +5,8 @@ import pickle
 import pandas as pd
 import numpy as np
 
+import scipy.io
+
 from sklearn.metrics import roc_auc_score
 from sklearn.model_selection import StratifiedGroupKFold
 
@@ -126,6 +128,8 @@ def main():
 
 
     for SNR in SNRs:
+        data_params['SNR'] = SNR
+
         ################ loading and preprocessing
         all_data = load_timecourses(signal_data, data_params)
 
