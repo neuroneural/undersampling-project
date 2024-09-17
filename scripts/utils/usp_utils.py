@@ -16,15 +16,13 @@ from sklearn.preprocessing import LabelEncoder
 
 
 
-
-
-
-
 def scale_noise(n, x, SNR):
     assert x.shape[0] == 53, 'timecourse dimension 0 should be 53'
     assert n.shape[0] == 53, 'noise dimension 0 should be 53'
     xTx = np.sum(np.square(x))
     nTn = np.sum(np.square(n))
+    if nTn == 0:
+        return np.zeros_like(n)
     c = ((xTx / nTn)**0.5) / (10**(SNR/2)) 
     scaled_noise = c * n
     return scaled_noise
@@ -37,8 +35,9 @@ def create_colored_noise(cov_mat, L, noise_size):
     white_noise = np.random.multivariate_normal(mean, np.eye(cov_mat.shape[0]), size=noise_size)
     colored_noise = white_noise @ L.T
     colored_noise = colored_noise.T
-    colored_noise = zscore(colored_noise, axis=1)
-    colored_noise = detrend(colored_noise, axis=1)
+    #colored_noise = zscore(colored_noise, axis=1)
+    #colored_noise = detrend(colored_noise, axis=1)
+    #the noise should have mean zero and covariance should not be the identity right ???
     return colored_noise
 
 
