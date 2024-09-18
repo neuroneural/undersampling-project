@@ -130,12 +130,14 @@ def main():
         res2 = []
         res3 = []
         res4 = []
+        res5 = []
 
         results = {
-            'sr1': res1,
-            'sr2': res2,
-            'concat': res3,
-            'add': res4
+            'sr1'         : res1,
+            'sr2'         : res2,
+            'concat'      : res3,
+            'add'         : res4,
+            'interleaved' : res5
         }
 
         data_params['SNR'] = SNR
@@ -151,20 +153,22 @@ def main():
 
 
             ################ windowing
-            sr1_data, sr2_data, add_data, concat_data = perform_windowing(data_df)
+            sr1_data, sr2_data, add_data, concat_data, interleaved_data = perform_windowing(data_df)
             
 
             X_tr100, y_tr100, group_tr100 = parse_X_y_groups(pd.DataFrame(sr1_data), 'SR1')
             X_tr2150, y_tr2150, group_tr2150 = parse_X_y_groups(pd.DataFrame(sr2_data), 'SR2')
             X_add, y_add, group_add = parse_X_y_groups(pd.DataFrame(add_data), 'Add')
             X_concat, y_concat, group_concat = parse_X_y_groups(pd.DataFrame(concat_data), 'Concat')
+            X_interleaved, y_interleaved, group_interleaved = parse_X_y_groups(pd.DataFrame(interleaved_data), 'Interleaved')
 
 
             datasets = [
                 ('sr1', X_tr100, y_tr100, group_tr100),
                 ('sr2', X_tr2150, y_tr2150, group_tr2150),
                 ('add', X_add, y_add, group_add),
-                ('concat', X_concat, y_concat, group_concat)
+                ('concat', X_concat, y_concat, group_concat),
+                ('interleaved', X_interleaved, y_interleaved, group_interleaved)
             ]
 
 

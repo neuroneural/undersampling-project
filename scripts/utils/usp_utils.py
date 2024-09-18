@@ -35,8 +35,8 @@ def create_colored_noise(cov_mat, L, noise_size):
     white_noise = np.random.multivariate_normal(mean, np.eye(cov_mat.shape[0]), size=noise_size)
     colored_noise = white_noise @ L.T
     colored_noise = colored_noise.T
-    #colored_noise = zscore(colored_noise, axis=1)
     #colored_noise = detrend(colored_noise, axis=1)
+    #colored_noise = zscore(colored_noise, axis=1)
     #the noise should have mean zero and covariance should not be the identity right ???
     return colored_noise
 
@@ -146,11 +146,12 @@ def genData(A, rate=2, burnin=100, ssize=5000, nstd=0.1):
     return data[:, ::rate]
 
 
-def perform_windowing(data_df):
+def perform_windowing(data_df): #should think about how to break this down into smaller functions
     sr1_data = []
     sr2_data = []
     add_data = []
     concat_data = []
+    int_data = []
     subjects = np.unique(data_df['Subject_ID'])
     for subject in subjects:
         logging.debug(f'begin windowing for subject {subject}')
@@ -161,6 +162,9 @@ def perform_windowing(data_df):
 
         sr2 = data_df[data_df['Subject_ID'] == subject]['SR2_Timecourse'].iloc[0]
         sr2_noise = data_df[data_df['Subject_ID'] == subject]['SR2_Timecourse_Noise'].iloc[0]
+
+        interleaved = data_df[data_df['Subject_ID'] == subject]['Interleaved_Timecourse'].iloc[0]
+        interleaved_noise = data_df[data_df['Subject_ID'] == subject]['Interleaved_Timecourse_Noise'].iloc[0]
 
 
         n_regions, n_tp_sr1 = sr1.shape
@@ -177,12 +181,22 @@ def perform_windowing(data_df):
         sr1_start_ix = 0
         sr1_end_ix = sr1_window_size
 
+
+        interleaved_window_size = sr1_window_size + sr2_window_size
+        interleaved_stride = sr1_stride + sr2_stride
+        interleaved_start_ix = 0
+        interleaved_end_ix = interleaved_window_size
+
         for j in range(n_sections):
             sr1_section = sr1[:, sr1_start_ix:sr1_end_ix]
             sr1_section_noise = sr1_noise[:, sr1_start_ix:sr1_end_ix]
 
             sr2_section = sr2[:, sr2_start_ix:sr2_end_ix]
             sr2_section_noise = sr2_noise[:, sr2_start_ix:sr2_end_ix]
+
+            int_section = interleaved[:, interleaved_start_ix:interleaved_end_ix]
+            int_section_noise = interleaved_noise[:, interleaved_start_ix:interleaved_end_ix]
+
 
             sr1_fnc_triu = np.corrcoef(sr1_section)[np.triu_indices(n_regions)]
             sr1_noise_fnc_triu = np.corrcoef(sr1_section_noise)[np.triu_indices(n_regions)]
@@ -195,6 +209,9 @@ def perform_windowing(data_df):
 
             add_sr1_sr2 = sr1_fnc_triu + sr2_fnc_triu
             add_sr1_sr2_noise = sr1_noise_fnc_triu + sr2_noise_fnc_triu
+
+            int_fnc_triu = np.corrcoef(int_section)[np.triu_indices(n_regions)]
+            int_fnc_triu_noise = np.corrcoef(int_section_noise)[np.triu_indices(n_regions)]
 
 
             sr1_data.append({'subject': subject, 'SR1_Window': sr1_fnc_triu, 'target': '0'})
@@ -212,16 +229,22 @@ def perform_windowing(data_df):
             add_data.append({'subject': subject,'Add_Window': add_sr1_sr2,'target': '0'})
             add_data.append({'subject': subject,'Add_Window': add_sr1_sr2_noise,'target': '1'})
 
+            int_data.append({'subject': subject, 'Interleaved_Window': int_fnc_triu, 'target': 0})
+            int_data.append({'subject': subject, 'Interleaved_Window': int_fnc_triu_noise, 'target': 1})
+
 
             sr1_start_ix += sr1_stride
             sr1_end_ix = sr1_start_ix + sr1_window_size
                 
             sr2_start_ix += sr2_stride
             sr2_end_ix = sr2_start_ix + sr2_window_size
+
+            interleaved_start_ix += interleaved_stride
+            interleaved_end_ix = interleaved_start_ix + interleaved_window_size
         ################ end loop over window sections
     ################ end loop over subjects
     
-    return sr1_data, sr2_data, add_data, concat_data
+    return sr1_data, sr2_data, add_data, concat_data, int_data
 
 
 def tune_svm(X, y, group, param_grid):
@@ -415,23 +438,35 @@ def load_timecourses(signal_data, data_params):
         # sample from noise and scale
         noise_sr1 = None
         noise_sr2 = None
+        interleaved_tc = None
+
 
         if signal_dataset == 'HCP':
             noise_sr1 = scale_noise(noises[subject], sr1_tc, SNR)
             noise_sr2 = scale_noise(noises[subject][:,::undersampling_rate], sr2_tc, SNR)
 
+            interleaved_tc = get_interleaved_tc(sr1_tc, undersampling_rate)
+            noise_interleaved = get_interleaved_tc(noise_sr1, undersampling_rate)
+
         else:
+            interleaved_tc = np.zeros_like(noises[subject])
+            interleaved_tc[:,::2] = sr1_tc
+            interleaved_tc[:,::33] = sr2_tc
+            noise_interleaved = scale_noise(noises[subject], interleaved_tc, SNR)
+
             noise_sr1 = scale_noise(noises[subject][:,::2], sr1_tc, SNR)
             noise_sr2 = scale_noise(noises[subject][:,::33], sr2_tc, SNR)
 
 
         all_data.append(
             {
-                'Subject_ID'             :  subject,
-                'SR1_Timecourse'         :  sr1_tc,
-                'SR2_Timecourse'         :  sr2_tc,
-                'SR1_Timecourse_Noise'   :  noise_sr1 + sr1_tc,
-                'SR2_Timecourse_Noise'   :  noise_sr2 + sr2_tc
+                'Subject_ID'                   :  subject,
+                'SR1_Timecourse'               :  sr1_tc,
+                'SR2_Timecourse'               :  sr2_tc,
+                'SR1_Timecourse_Noise'         :  noise_sr1 + sr1_tc,
+                'SR2_Timecourse_Noise'         :  noise_sr2 + sr2_tc, 
+                'Interleaved_Timecourse'       :  interleaved_tc,
+                'Interleaved_Timecourse_Noise' :  noise_interleaved + interleaved_tc,
             }
         )
     ################ end loop over subjects
@@ -535,3 +570,25 @@ def plot_cv_indices(cv, X, y, group, ax, n_splits, save_data, lw=10):
 
 
     fig.savefig(f'cvplot_{name}.png')
+
+
+
+
+def get_interleaved_tc(sr1, undersampling_rate):
+    assert sr1.shape[0] == 53, 'timecourse first dimension should be 53'
+    interleaved_mat = []
+
+    for i in range(53):
+        interleaved_mat.append([])
+        
+    for i in range(53):
+        for j in range(sr1.shape[1]):
+            if j % undersampling_rate == 0:
+                interleaved_mat[i].append(sr1[i][j])
+            interleaved_mat[i].append(sr1[i][j])
+            
+    interleaved_mat = np.array(interleaved_mat)
+    assert interleaved_mat.shape[0] == 53, 'interleaved first dimension should be 53'
+
+    return interleaved_mat
+            
