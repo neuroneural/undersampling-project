@@ -130,12 +130,14 @@ def main():
         res2 = []
         res3 = []
         res4 = []
+        res5 = []
 
         results = {
             'sr1': res1,
             'sr2': res2,
             'concat': res3,
-            'add': res4
+            'add': res4,
+            'pca' : res5
         }
 
         data_params['SNR'] = SNR
@@ -154,17 +156,26 @@ def main():
             sr1_data, sr2_data, add_data, concat_data = perform_windowing(data_df)
             
 
-            X_tr100, y_tr100, group_tr100 = parse_X_y_groups(pd.DataFrame(sr1_data), 'SR1')
-            X_tr2150, y_tr2150, group_tr2150 = parse_X_y_groups(pd.DataFrame(sr2_data), 'SR2')
+            X_sr1, y_sr1, group_sr1 = parse_X_y_groups(pd.DataFrame(sr1_data), 'SR1')
+            X_sr2, y_sr2, group_sr2 = parse_X_y_groups(pd.DataFrame(sr2_data), 'SR2')
             X_add, y_add, group_add = parse_X_y_groups(pd.DataFrame(add_data), 'Add')
             X_concat, y_concat, group_concat = parse_X_y_groups(pd.DataFrame(concat_data), 'Concat')
 
+            X_pca, y_pca, group_pca = get_pca_features(pd.DataFrame(concat_data), 'Concat', n_comp=1431)
+
+            """X_pca, y_pca, group_pca = sum_features(\
+                        X_sr1_pca, y_sr1_pca, group_sr1_pca,\
+                        X_sr2_pca, y_sr2_pca, group_sr2_pca)"""
+        
+
+
 
             datasets = [
-                ('sr1', X_tr100, y_tr100, group_tr100),
-                ('sr2', X_tr2150, y_tr2150, group_tr2150),
-                ('add', X_add, y_add, group_add),
-                ('concat', X_concat, y_concat, group_concat)
+                #('sr1', X_sr1, y_sr1, group_sr1),
+                #('sr2', X_sr2, y_sr2, group_sr2),
+                #('add', X_add, y_add, group_add),
+                #('concat', X_concat, y_concat, group_concat),
+                ('pca', X_pca, y_pca, group_pca),
             ]
 
 
@@ -202,11 +213,11 @@ def main():
         logging.info(f'pkl_dir: {pkl_dir}')
 
         for key, data in results.items():
-            df = pd.DataFrame(data)
-            filename = f'{key}_{SNR}_{noise_dataset}_{signal_dataset}.pkl'
-            df.to_pickle(f'{pkl_dir}/{filename}')
-            logging.info(f'saved results for {key} at {pkl_dir}/{filename}')
+            if data != []:
+                df = pd.DataFrame(data)
+                filename = f'{key}_{SNR}_{noise_dataset}_{signal_dataset}.pkl'
+                df.to_pickle(f'{pkl_dir}/{filename}')
+                logging.info(f'saved results for {key} at {pkl_dir}/{filename}')
 
 if __name__ == "__main__":
     main()
-
