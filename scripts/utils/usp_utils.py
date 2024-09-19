@@ -13,6 +13,7 @@ from sklearn.model_selection import GridSearchCV, StratifiedGroupKFold
 from sklearn.metrics import make_scorer, roc_auc_score, confusion_matrix, ConfusionMatrixDisplay
 from sklearn.svm import SVC
 from sklearn.preprocessing import LabelEncoder
+from sklearn.decomposition import PCA
 
 
 
@@ -195,7 +196,6 @@ def perform_windowing(data_df):
 
             add_sr1_sr2 = sr1_fnc_triu + sr2_fnc_triu
             add_sr1_sr2_noise = sr1_noise_fnc_triu + sr2_noise_fnc_triu
-
 
             sr1_data.append({'subject': subject, 'SR1_Window': sr1_fnc_triu, 'target': '0'})
             sr1_data.append({'subject': subject, 'SR1_Window': sr1_noise_fnc_triu, 'target': '1'})
@@ -535,3 +535,43 @@ def plot_cv_indices(cv, X, y, group, ax, n_splits, save_data, lw=10):
 
 
     fig.savefig(f'cvplot_{name}.png')
+
+
+
+
+def get_pca_features(data_df, name, n_comp=160):
+    le = LabelEncoder()
+    group = le.fit_transform(data_df['subject'])
+    y = data_df['target']
+    y = np.array([str(entry) for entry in y])
+    X = data_df[f'{name}_Window']
+    X = np.array([np.array(entry) for entry in X])
+
+
+    pca = PCA(n_components=160)
+    X_pca = pca.fit_transform(X)
+
+    return X_pca, y, group
+
+
+
+
+
+def sum_features(X1, y1, group1, X2, y2, group2):
+    pca_summed = X1 + X2
+    n_comp = X1.shape[1]
+
+    assert np.array_equal(group1, group2), 'group labels do not match'
+    assert np.array_equal(y1, y2), 'noise labels do not match'
+    assert len(pca_summed) == len(y1) == len(y2) == \
+    len(group1) == len(group2) == len(X1) == len(X2) == 1600, \
+    'there should be 1600 datapoints in all labels and datasets'
+    assert pca_summed.shape == (1600, n_comp), 'summed pca features should have dimension 1600 x n_comp'
+
+    y_pca = y1
+    group_pca = group1
+
+
+    return pca_summed, y_pca, group_pca
+
+    
