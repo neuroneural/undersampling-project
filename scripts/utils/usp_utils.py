@@ -12,19 +12,23 @@ from scipy.sparse.linalg import eigs
 from sklearn.model_selection import GridSearchCV, StratifiedGroupKFold
 from sklearn.metrics import make_scorer, roc_auc_score, confusion_matrix, ConfusionMatrixDisplay
 from sklearn.svm import SVC
-from sklearn.preprocessing import LabelEncoder
+from sklearn.preprocessing import LabelEncoder, MinMaxScaler
 from sklearn.decomposition import PCA
 
 
 
 def scale_noise(n, x, SNR):
-    assert x.shape[0] == 53, 'timecourse dimension 0 should be 53'
-    assert n.shape[0] == 53, 'noise dimension 0 should be 53'
+    logging.debug(f'noise.shape {n.shape}')
+    logging.debug(f'signal.shape {x.shape}')
+    logging.debug(f'SNR {SNR}')
+    #assert x.shape[0] <= x.shape[1], 'noise should be observations x timepoints'
+    #assert n.shape[0] <= x.shape[1], 'noise should be observations x timepoints'
     xTx = np.sum(np.square(x))
     nTn = np.sum(np.square(n))
     if nTn == 0:
         return np.zeros_like(n)
     c = ((xTx / nTn)**0.5) / (10**(SNR/2)) 
+    logging.debug(f'noise scalar {c}')
     scaled_noise = c * n
     return scaled_noise
 
@@ -539,7 +543,7 @@ def plot_cv_indices(cv, X, y, group, ax, n_splits, save_data, lw=10):
 
 
 
-def get_pca_features(data_df, name, n_comp):
+def get_pca_features(data_df, name, n_comp, SNR):
     noise_df = data_df[data_df['target'] == '1']
     X_noise = noise_df[f'{name}_Window']
     X_noise = np.array([np.array(entry) for entry in X_noise])
@@ -558,10 +562,14 @@ def get_pca_features(data_df, name, n_comp):
 
 
     pca = PCA(n_components=n_comp)
-    X_noise_pca = pca.fit_transform(X_noise)
+    X_signal_pca = pca.fit_transform(X_signal)
+    X_signal_pca = MinMaxScaler(feature_range=(-1,1)).fit_transform(X_signal_pca)
 
     pca = PCA(n_components=n_comp)
-    X_signal_pca = pca.fit_transform(X_signal)
+    X_noise_pca = pca.fit_transform(X_noise)
+    X_noise_pca = MinMaxScaler(feature_range=(-1,1)).fit_transform(X_noise_pca)
+    X_noise_pca = scale_noise(X_noise_pca, X_signal_pca, SNR) 
+    X_noise_pca += X_signal_pca
 
     X_pca = np.concat((X_noise_pca, X_signal_pca))
     y = np.concat((y_noise, y_signal))
