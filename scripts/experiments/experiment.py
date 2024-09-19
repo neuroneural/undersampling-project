@@ -164,10 +164,10 @@ def main():
 
 
             datasets = [
-                ('sr1', X_tr100, y_tr100, group_tr100),
-                ('sr2', X_tr2150, y_tr2150, group_tr2150),
-                ('add', X_add, y_add, group_add),
-                ('concat', X_concat, y_concat, group_concat),
+                #('sr1', X_tr100, y_tr100, group_tr100),
+                #('sr2', X_tr2150, y_tr2150, group_tr2150),
+                #('add', X_add, y_add, group_add),
+                #('concat', X_concat, y_concat, group_concat),
                 ('interleaved', X_interleaved, y_interleaved, group_interleaved)
             ]
 
@@ -206,10 +206,11 @@ def main():
         logging.info(f'pkl_dir: {pkl_dir}')
 
         for key, data in results.items():
-            df = pd.DataFrame(data)
-            filename = f'{key}_{SNR}_{noise_dataset}_{signal_dataset}.pkl'
-            df.to_pickle(f'{pkl_dir}/{filename}')
-            logging.info(f'saved results for {key} at {pkl_dir}/{filename}')
+            if data != []:
+                df = pd.DataFrame(data)
+                filename = f'{key}_{SNR}_{noise_dataset}_{signal_dataset}.pkl'
+                df.to_pickle(f'{pkl_dir}/{filename}')
+                logging.info(f'saved results for {key} at {pkl_dir}/{filename}')
 
 if __name__ == "__main__":
     main()
