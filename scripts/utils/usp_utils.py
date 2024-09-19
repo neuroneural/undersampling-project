@@ -540,16 +540,32 @@ def plot_cv_indices(cv, X, y, group, ax, n_splits, save_data, lw=10):
 
 
 def get_pca_features(data_df, name, n_comp):
+    noise_df = data_df[data_df['target'] == '1']
+    X_noise = noise_df[f'{name}_Window']
+    X_noise = np.array([np.array(entry) for entry in X_noise])
+    y_noise = noise_df['target']
+    y_noise = np.array([str(entry) for entry in y_noise])
     le = LabelEncoder()
-    group = le.fit_transform(data_df['subject'])
-    y = data_df['target']
-    y = np.array([str(entry) for entry in y])
-    X = data_df[f'{name}_Window']
-    X = np.array([np.array(entry) for entry in X])
+    group_noise = le.fit_transform(noise_df['subject'])
+
+    signal_df = data_df[data_df['target'] == '0']
+    X_signal = signal_df[f'{name}_Window']
+    X_signal = np.array([np.array(entry) for entry in X_signal])
+    y_signal = signal_df['target']
+    y_signal = np.array([str(entry) for entry in y_signal])
+    le = LabelEncoder()
+    group_signal = le.fit_transform(signal_df['subject'])
 
 
     pca = PCA(n_components=n_comp)
-    X_pca = pca.fit_transform(X)
+    X_noise_pca = pca.fit_transform(X_noise)
+
+    pca = PCA(n_components=n_comp)
+    X_signal_pca = pca.fit_transform(X_signal)
+
+    X_pca = np.concat((X_noise_pca, X_signal_pca))
+    y = np.concat((y_noise, y_signal))
+    group = np.concat((group_noise, group_signal))
 
     return X_pca, y, group
 
