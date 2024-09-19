@@ -130,14 +130,12 @@ def main():
         res2 = []
         res3 = []
         res4 = []
-        res5 = []
 
         results = {
             'sr1': res1,
             'sr2': res2,
             'concat': res3,
             'add': res4,
-            'pca' : res5
         }
 
         data_params['SNR'] = SNR
@@ -161,21 +159,13 @@ def main():
             X_add, y_add, group_add = parse_X_y_groups(pd.DataFrame(add_data), 'Add')
             X_concat, y_concat, group_concat = parse_X_y_groups(pd.DataFrame(concat_data), 'Concat')
 
-            X_pca, y_pca, group_pca = get_pca_features(pd.DataFrame(concat_data), 'Concat', n_comp=1431)
-
-            """X_pca, y_pca, group_pca = sum_features(\
-                        X_sr1_pca, y_sr1_pca, group_sr1_pca,\
-                        X_sr2_pca, y_sr2_pca, group_sr2_pca)"""
-        
-
 
 
             datasets = [
-                #('sr1', X_sr1, y_sr1, group_sr1),
-                #('sr2', X_sr2, y_sr2, group_sr2),
-                #('add', X_add, y_add, group_add),
-                #('concat', X_concat, y_concat, group_concat),
-                ('pca', X_pca, y_pca, group_pca),
+                ('sr1', X_sr1, y_sr1, group_sr1),
+                ('sr2', X_sr2, y_sr2, group_sr2),
+                ('add', X_add, y_add, group_add),
+                ('concat', X_concat, y_concat, group_concat),
             ]
 
 
