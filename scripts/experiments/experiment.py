@@ -105,7 +105,10 @@ def main():
         covariance_matrix = noise_data['cov_mat']
 
         logging.debug(f'L {L}')
+        logging.debug(f'L.shape {L.shape}')
+
         logging.debug(f'covariance_matrix {covariance_matrix}')
+        logging.debug(f'covariance_matrix.shape {covariance_matrix.shape}')
 
         data_params['L'] = L
         data_params['covariance_matrix'] = covariance_matrix
@@ -161,7 +164,7 @@ def main():
             X_add, y_add, group_add = parse_X_y_groups(pd.DataFrame(add_data), 'Add')
             X_concat, y_concat, group_concat = parse_X_y_groups(pd.DataFrame(concat_data), 'Concat')
 
-            X_pca, y_pca, group_pca = get_pca_features(pd.DataFrame(concat_data), 'Concat', n_comp=1431)
+            X_pca, y_pca, group_pca = get_pca_features(pd.DataFrame(concat_data), 'Concat', 1431)
 
             """X_pca, y_pca, group_pca = sum_features(\
                         X_sr1_pca, y_sr1_pca, group_sr1_pca,\

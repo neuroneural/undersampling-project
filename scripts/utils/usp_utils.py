@@ -13,6 +13,7 @@ from sklearn.model_selection import GridSearchCV, StratifiedGroupKFold
 from sklearn.metrics import make_scorer, roc_auc_score, confusion_matrix, ConfusionMatrixDisplay
 from sklearn.svm import SVC
 from sklearn.preprocessing import LabelEncoder
+from sklearn.decomposition import PCA
 
 
 
@@ -538,7 +539,7 @@ def plot_cv_indices(cv, X, y, group, ax, n_splits, save_data, lw=10):
 
 
 
-def get_pca_features(data_df, name, n_comp=160):
+def get_pca_features(data_df, name, n_comp):
     le = LabelEncoder()
     group = le.fit_transform(data_df['subject'])
     y = data_df['target']
@@ -547,7 +548,7 @@ def get_pca_features(data_df, name, n_comp=160):
     X = np.array([np.array(entry) for entry in X])
 
 
-    pca = PCA(n_components=160)
+    pca = PCA(n_components=n_comp)
     X_pca = pca.fit_transform(X)
 
     return X_pca, y, group
