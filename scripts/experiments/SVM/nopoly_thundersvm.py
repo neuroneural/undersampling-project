@@ -1,6 +1,7 @@
 import logging
 import argparse
 import pickle
+from datetime import datetime
 
 import pandas as pd
 import numpy as np
@@ -116,9 +117,16 @@ def main():
     if signal_dataset == 'OULU':
         undersampling_rate = 1
         NOISE_SIZE = 2961*2
-    else: 
+    
+    if signal_dataset == 'SIMULATION':
+        undersampling_rate = 1
+        NOISE_SIZE = 18018 #might should write a function to compute this, it is LCM(t1*k1, t2*k2)
+
+    if signal_dataset == 'HCP':
         NOISE_SIZE = 1200
         undersampling_rate = 6
+
+    
 
 
     data_params['NOISE_SIZE'] = NOISE_SIZE
@@ -205,6 +213,7 @@ def main():
                             'fold'             : fold_ix, 
                             'roc'              : fold_score,
                             'sampling_rate'    : name,
+                            'classifier'       : 'SVM'
                         }
                     )
                     
@@ -216,7 +225,8 @@ def main():
 
         for key, data in results.items():
             df = pd.DataFrame(data)
-            filename = f'{key}_{SNR}_{noise_dataset}_{signal_dataset}_SVM_{kernel_type}.pkl'
+            current_date = datetime.now().strftime('%Y-%m-%d')
+            filename = f'{key}_{SNR}_{noise_dataset}_{signal_dataset}_SVM_{kernel_type}_{current_date}.pkl'
             df.to_pickle(f'{pkl_dir}/{filename}')
             logging.info(f'saved results for {key} at {pkl_dir}/{filename}')
 

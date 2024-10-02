@@ -18,8 +18,8 @@ from sklearn.decomposition import PCA
 
 
 def scale_noise(n, x, SNR):
-    assert x.shape[0] == 53, 'timecourse dimension 0 should be 53'
-    assert n.shape[0] == 53, 'noise dimension 0 should be 53'
+    #assert x.shape[0] == 53, 'timecourse dimension 0 should be 53'
+    #assert n.shape[0] == 53, 'noise dimension 0 should be 53'
     xTx = np.sum(np.square(x))
     nTn = np.sum(np.square(n))
     if nTn == 0:
@@ -67,7 +67,7 @@ def create_var_noise(A, subjects, threshold, u_rate, burn, NOISE_SIZE, nstd):
 
 
 def preprocess_timecourse(tc_data):
-    assert tc_data.shape[0] == 53, 'timecourse dimension 0 should be 53'
+    #assert tc_data.shape[0] == 53, 'timecourse dimension 0 should be 53'
     data = detrend(tc_data, axis=1)   
     data = zscore(data, axis=1)
     return data
@@ -195,7 +195,16 @@ def perform_windowing(data_df):
             concat_sr1_sr2_noise = np.concatenate((sr1_noise_fnc_triu , sr2_noise_fnc_triu))
 
             add_sr1_sr2 = sr1_fnc_triu + sr2_fnc_triu
+            #original 
             add_sr1_sr2_noise = sr1_noise_fnc_triu + sr2_noise_fnc_triu
+            
+            #option 1
+            #add_sr1_sr2_noise *= .5
+            
+
+
+            #option 2
+            #add_sr1_sr2_noise = sr1_noise_fnc_triu + sr2_fnc_triu
 
             sr1_data.append({'subject': subject, 'SR1_Window': sr1_fnc_triu, 'target': '0'})
             sr1_data.append({'subject': subject, 'SR1_Window': sr1_noise_fnc_triu, 'target': '1'})
@@ -380,6 +389,10 @@ def load_timecourses(signal_data, data_params):
         if noise_dataset != 'VAR':
             noises[subject] = create_colored_noise(covariance_matrix, L, NOISE_SIZE)
             logging.debug(f'computed noise for subject: {subject}')
+
+            if signal_dataset == 'SIMULATION': 
+                noises[subject] = noises[subject][:5, :]
+            logging.debug(f'noises[subject].shape {noises[subject].shape}')
                 
 
 
@@ -392,18 +405,21 @@ def load_timecourses(signal_data, data_params):
         
 
         else:
-            logging.debug('OULU dataset detected during loading')
+            tr1 = signal_data.iloc[0]['sampling_rate'].replace('TR', '')
+            logging.debug(f'TR {tr1} detected during loading')
             sr1_tc = signal_data[
                 (signal_data['subject'] == subject) & 
-                (signal_data['sampling_rate'] == 'TR100')
+                (signal_data['sampling_rate'] == f'TR{tr1}')
             ]['ica_timecourse'].iloc[0]
 
+            tr2 = signal_data.iloc[1]['sampling_rate'].replace('TR', '')
+            logging.debug(f'TR {tr2} detected during loading')
             sr2_tc = signal_data[
                 (signal_data['subject'] == subject) & 
-                (signal_data['sampling_rate'] == 'TR2150')
+                (signal_data['sampling_rate'] == f'TR{tr2}')
             ]['ica_timecourse'].iloc[0]
 
-
+        
         sr1_tc = preprocess_timecourse(sr1_tc)
         sr2_tc = preprocess_timecourse(sr2_tc) if signal_dataset == 'OULU' else sr1_tc[:,::undersampling_rate]
 
@@ -421,8 +437,13 @@ def load_timecourses(signal_data, data_params):
             noise_sr2 = scale_noise(noises[subject][:,::undersampling_rate], sr2_tc, SNR)
 
         else:
-            noise_sr1 = scale_noise(noises[subject][:,::2], sr1_tc, SNR)
-            noise_sr2 = scale_noise(noises[subject][:,::33], sr2_tc, SNR)
+            k1 = 2 if signal_dataset == 'OULU' else NOISE_SIZE // sr1_tc.shape[1]
+            k2 = 33 if signal_dataset == 'OULU' else NOISE_SIZE // sr2_tc.shape[1]
+
+            noise_sr1 = scale_noise(noises[subject][:,::k1], sr1_tc, SNR)
+            noise_sr2 = scale_noise(noises[subject][:,::k2], sr2_tc, SNR)
+
+
 
 
         all_data.append(

@@ -10,8 +10,13 @@ poly_*/
 *.yaml
 OULU/
 HCP/
+SIMULATION/
 mkpths*.sh
 submit*.sh
 __pycache__/
 *.nfs
 confmats/
+*.npz
+simulation_data/
+*.csv
+simulation_data.tar

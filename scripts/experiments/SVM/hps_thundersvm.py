@@ -111,13 +111,20 @@ def main():
         data_params['L'] = L
         data_params['covariance_matrix'] = covariance_matrix
 
+
     if signal_dataset == 'OULU':
         undersampling_rate = 1
         NOISE_SIZE = 2961*2
-    else: 
+    
+    if signal_dataset == 'SIMULATION':
+        undersampling_rate = 1
+        NOISE_SIZE = 18018 #might should write a function to compute this, it is LCM(t1*k1, t2*k2)
+
+    if signal_dataset == 'HCP':
         NOISE_SIZE = 1200
         undersampling_rate = 6
 
+    
     
 
     data_params['NOISE_SIZE'] = NOISE_SIZE

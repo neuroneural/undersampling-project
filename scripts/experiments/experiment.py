@@ -1,5 +1,6 @@
 import logging
 import argparse
+from datetime import datetime
 
 import pandas as pd
 import numpy as np
@@ -113,7 +114,12 @@ def main():
     if signal_dataset == 'OULU':
         undersampling_rate = 1
         NOISE_SIZE = 2961*2
-    else: 
+    
+    if signal_dataset == 'SIMULATION':
+        undersampling_rate = 1
+        NOISE_SIZE = 18018 #might should write a function to compute this, it is LCM(t1*k1, t2*k2)
+
+    if signal_dataset == 'HCP':
         NOISE_SIZE = 1200
         undersampling_rate = 6
 
@@ -205,10 +211,10 @@ def main():
         for key, data in results.items():
             if data != []:
                 df = pd.DataFrame(data)
-                filename = f'{key}_{SNR}_{noise_dataset}_{signal_dataset}.pkl'
+                current_date = datetime.now().strftime('%Y-%m-%d')
+                filename = f'{key}_{SNR}_{noise_dataset}_{signal_dataset}_{current_date}.pkl'
                 df.to_pickle(f'{pkl_dir}/{filename}')
                 logging.info(f'saved results for {key} at {pkl_dir}/{filename}')
 
 if __name__ == "__main__":
     main()
-
