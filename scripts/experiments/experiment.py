@@ -136,12 +136,14 @@ def main():
         res2 = []
         res3 = []
         res4 = []
+        res5 = []
 
         results = {
             'sr1': res1,
             'sr2': res2,
             'concat': res3,
             'add': res4,
+            'combcov': res5
         }
 
         data_params['SNR'] = SNR
@@ -157,13 +159,14 @@ def main():
 
 
             ################ windowing
-            sr1_data, sr2_data, add_data, concat_data = perform_windowing(data_df)
+            sr1_data, sr2_data, add_data, concat_data, combcov_data = perform_windowing(data_df)
             
 
             X_sr1, y_sr1, group_sr1 = parse_X_y_groups(pd.DataFrame(sr1_data), 'SR1')
             X_sr2, y_sr2, group_sr2 = parse_X_y_groups(pd.DataFrame(sr2_data), 'SR2')
             X_add, y_add, group_add = parse_X_y_groups(pd.DataFrame(add_data), 'Add')
             X_concat, y_concat, group_concat = parse_X_y_groups(pd.DataFrame(concat_data), 'Concat')
+            X_combcov, y_combcov, group_combcov = parse_X_y_groups(pd.DataFrame(combcov_data), 'CombCov')
 
 
 
@@ -172,6 +175,7 @@ def main():
                 ('sr2', X_sr2, y_sr2, group_sr2),
                 ('add', X_add, y_add, group_add),
                 ('concat', X_concat, y_concat, group_concat),
+                ('combcov', X_combcov, y_combcov, group_combcov),
             ]
 
 

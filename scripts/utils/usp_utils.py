@@ -152,6 +152,7 @@ def perform_windowing(data_df):
     sr2_data = []
     add_data = []
     concat_data = []
+    combcov_data = []
     subjects = np.unique(data_df['Subject_ID'])
     for subject in subjects:
         logging.debug(f'begin windowing for subject {subject}')
@@ -194,17 +195,12 @@ def perform_windowing(data_df):
             concat_sr1_sr2 = np.concatenate((sr1_fnc_triu , sr2_fnc_triu))
             concat_sr1_sr2_noise = np.concatenate((sr1_noise_fnc_triu , sr2_noise_fnc_triu))
 
-            add_sr1_sr2 = sr1_fnc_triu + sr2_fnc_triu
-            #original 
+            add_sr1_sr2 = sr1_fnc_triu + sr2_fnc_triu 
             add_sr1_sr2_noise = sr1_noise_fnc_triu + sr2_noise_fnc_triu
-            
-            #option 1
-            #add_sr1_sr2_noise *= .5
-            
 
-
-            #option 2
-            #add_sr1_sr2_noise = sr1_noise_fnc_triu + sr2_fnc_triu
+            combcov = np.corrcoef(np.concatenate((sr1_section, sr2_section)))[np.triu_indices(n_regions)]
+            combcov_noise = np.corrcoef(np.concatenate((sr1_section_noise, sr2_section_noise)))[np.triu_indices(n_regions)]
+   
 
             sr1_data.append({'subject': subject, 'SR1_Window': sr1_fnc_triu, 'target': '0'})
             sr1_data.append({'subject': subject, 'SR1_Window': sr1_noise_fnc_triu, 'target': '1'})
@@ -221,6 +217,9 @@ def perform_windowing(data_df):
             add_data.append({'subject': subject,'Add_Window': add_sr1_sr2,'target': '0'})
             add_data.append({'subject': subject,'Add_Window': add_sr1_sr2_noise,'target': '1'})
 
+            combcov_data.append({'subject': subject,'CombCov_Window': combcov,'target': '0'})
+            combcov_data.append({'subject': subject,'CombCov_Window': combcov_noise,'target': '1'})
+
 
             sr1_start_ix += sr1_stride
             sr1_end_ix = sr1_start_ix + sr1_window_size
@@ -230,7 +229,7 @@ def perform_windowing(data_df):
         ################ end loop over window sections
     ################ end loop over subjects
     
-    return sr1_data, sr2_data, add_data, concat_data
+    return sr1_data, sr2_data, add_data, concat_data, combcov_data
 
 
 def tune_svm(X, y, group, param_grid):
