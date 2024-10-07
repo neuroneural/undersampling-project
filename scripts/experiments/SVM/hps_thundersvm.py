@@ -26,7 +26,7 @@ def main():
 
     parser.add_argument('-i', '--snr-int', type=float, nargs='+', help='upper, lower, step of SNR interval', required=False)
     parser.add_argument('-f', '--n-folds', type=int, help='number of folds for cross-validation', required=False)
-    parser.add_argument('-v', '--verbose', type=bool, help='turn on debug logging', required=False)
+    parser.add_argument('-v', '--verbose', action='store_true', help='turn on debug logging', required=False)
     
     args = parser.parse_args()
     data_params = {}
@@ -147,13 +147,14 @@ def main():
 
 
         ################ windowing
-        sr1_data, sr2_data, add_data, concat_data = perform_windowing(data_df)
+        sr1_data, sr2_data, add_data, concat_data, combcov_data = perform_windowing(data_df)
         
 
         X_tr100, y_tr100, group_tr100 = parse_X_y_groups(pd.DataFrame(sr1_data), 'SR1')
         X_tr2150, y_tr2150, group_tr2150 = parse_X_y_groups(pd.DataFrame(sr2_data), 'SR2')
         X_add, y_add, group_add = parse_X_y_groups(pd.DataFrame(add_data), 'Add')
         X_concat, y_concat, group_concat = parse_X_y_groups(pd.DataFrame(concat_data), 'Concat')
+        X_combcov, y_combcov, group_combcov = parse_X_y_groups(pd.DataFrame(combcov_data), 'CombCov')
 
 
         # Define hyperparameter grid
@@ -166,10 +167,11 @@ def main():
 
         # List of datasets and names for easy iteration
         datasets = [
-            ('sr1', X_tr100, y_tr100, group_tr100),
-            ('sr2', X_tr2150, y_tr2150, group_tr2150),
-            ('add', X_add, y_add, group_add),
-            ('concat', X_concat, y_concat, group_concat)
+            #('sr1', X_tr100, y_tr100, group_tr100),
+            #('sr2', X_tr2150, y_tr2150, group_tr2150),
+            #('add', X_add, y_add, group_add),
+            #('concat', X_concat, y_concat, group_concat),
+            ('combcov', X_combcov, y_combcov, group_combcov)
         ]
 
         for name, X, y, group in datasets:

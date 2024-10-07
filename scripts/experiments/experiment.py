@@ -215,7 +215,7 @@ def main():
         for key, data in results.items():
             if data != []:
                 df = pd.DataFrame(data)
-                current_date = datetime.now().strftime('%Y-%m-%d')
+                current_date = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
                 filename = f'{key}_{SNR}_{noise_dataset}_{signal_dataset}_{current_date}.pkl'
                 df.to_pickle(f'{pkl_dir}/{filename}')
                 logging.info(f'saved results for {key} at {pkl_dir}/{filename}')

@@ -29,7 +29,7 @@ def main():
     parser.add_argument('-i', '--snr-int', type=float, nargs='+', help='upper, lower, step of SNR interval', required=False)
     parser.add_argument('-f', '--n-folds', type=int, help='number of folds for cross-validation', required=False)
     parser.add_argument('-nn', '--num_noise', type=int, help='number of noise iterations', required=False)
-    parser.add_argument('-v', '--verbose', type=bool, help='turn on debug logging', required=False)
+    parser.add_argument('-v', '--verbose', action='store_true', help='turn on debug logging', required=False)
     
     args = parser.parse_args()
     data_params = {}
@@ -138,6 +138,7 @@ def main():
         res2 = []
         res3 = []
         res4 = []
+        res5 = []
 
 
         for noise_ix in range(num_noise):
@@ -151,13 +152,14 @@ def main():
 
 
 
-            sr1_data, sr2_data, add_data, concat_data = perform_windowing(data_df)
+            sr1_data, sr2_data, add_data, concat_data, combcov_data = perform_windowing(data_df)
             
 
             X_tr100, y_tr100, group_tr100 = parse_X_y_groups(pd.DataFrame(sr1_data), 'SR1')
             X_tr2150, y_tr2150, group_tr2150 = parse_X_y_groups(pd.DataFrame(sr2_data), 'SR2')
             X_add, y_add, group_add = parse_X_y_groups(pd.DataFrame(add_data), 'Add')
             X_concat, y_concat, group_concat = parse_X_y_groups(pd.DataFrame(concat_data), 'Concat')
+            X_combcov, y_combcov, group_combcov = parse_X_y_groups(pd.DataFrame(combcov_data), 'CombCov')
 
 
 
@@ -168,14 +170,16 @@ def main():
                 ('sr1', X_tr100, y_tr100, group_tr100),
                 ('sr2', X_tr2150, y_tr2150, group_tr2150),
                 ('add', X_add, y_add, group_add),
-                ('concat', X_concat, y_concat, group_concat)
+                ('concat', X_concat, y_concat, group_concat),
+                ('combcov', X_combcov, y_combcov, group_combcov)
             ]
 
             results = {
                 'sr1': res1,
                 'sr2': res2,
                 'concat': res3,
-                'add': res4
+                'add': res4, 
+                'combcov': res5
             }
 
             for name, X, y, group in datasets:
@@ -225,7 +229,7 @@ def main():
 
         for key, data in results.items():
             df = pd.DataFrame(data)
-            current_date = datetime.now().strftime('%Y-%m-%d')
+            current_date = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
             filename = f'{key}_{SNR}_{noise_dataset}_{signal_dataset}_SVM_{kernel_type}_{current_date}.pkl'
             df.to_pickle(f'{pkl_dir}/{filename}')
             logging.info(f'saved results for {key} at {pkl_dir}/{filename}')

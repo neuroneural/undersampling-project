@@ -198,8 +198,8 @@ def perform_windowing(data_df):
             add_sr1_sr2 = sr1_fnc_triu + sr2_fnc_triu 
             add_sr1_sr2_noise = sr1_noise_fnc_triu + sr2_noise_fnc_triu
 
-            combcov = np.corrcoef(np.concatenate((sr1_section, sr2_section)))[np.triu_indices(n_regions)]
-            combcov_noise = np.corrcoef(np.concatenate((sr1_section_noise, sr2_section_noise)))[np.triu_indices(n_regions)]
+            combcov = np.corrcoef(np.concatenate((sr1_section, sr2_section), axis=1))[np.triu_indices(n_regions)]
+            combcov_noise = np.corrcoef(np.concatenate((sr1_section_noise, sr2_section_noise), axis=1))[np.triu_indices(n_regions)]
    
 
             sr1_data.append({'subject': subject, 'SR1_Window': sr1_fnc_triu, 'target': '0'})
