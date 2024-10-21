@@ -9,6 +9,7 @@ import scipy.io
 
 from sklearn.metrics import roc_auc_score
 from sklearn.model_selection import StratifiedGroupKFold
+from sklearn.preprocessing import StandardScaler
 
 from utils.usp_utils import *
 from thundersvm import SVC
@@ -132,8 +133,6 @@ def main():
 
     
 
-
-
     for SNR in SNRs:
         data_params['SNR'] = SNR
 
@@ -155,11 +154,25 @@ def main():
         X_add, y_add, group_add = parse_X_y_groups(pd.DataFrame(add_data), 'Add')
         X_concat, y_concat, group_concat = parse_X_y_groups(pd.DataFrame(concat_data), 'Concat')
 
+        scaler = StandardScaler()
+
+        X_tr100 = scaler.fit_transform(X_tr100)
+        X_tr2150 = scaler.fit_transform(X_tr2150)
+        X_add = scaler.fit_transform(X_add)
+        X_concat = scaler.fit_transform(X_concat)
+
+
+        y_tr100 = np.where(y_tr100 == '0', -1, 1)
+        y_tr2150 = np.where(y_tr2150 == '0', -1, 1)
+        y_add = np.where(y_add == '0', -1, 1)
+        y_concat = np.where(y_concat == '0', -1, 1)
+
 
         # Define hyperparameter grid
-        C_values = [0.1, 1.0, 10.0]
-        coef0_values = [0.0, 0.1, 1.0]
-        tol_values = [0.001, 0.01, 0.1]
+        C_values = [45, 90, 180]
+        #coef0_values = [0.0, 0.01, 0.1, 1.0]
+        tol_values = [0.1, 0.2, 0.5]
+        gamma_values = [1e-9, 1e-6, 1e-5]
 
         # Initialize outer and inner cross-validation splitters
         sgkf = StratifiedGroupKFold(n_splits=n_folds, shuffle=True, random_state=42)
@@ -196,7 +209,8 @@ def main():
 
                 # Inner loop for hyperparameter tuning
                 for C in C_values:
-                    for coef0 in coef0_values:
+                    #for coef0 in coef0_values:
+                    for gamma in gamma_values:
                         for tol in tol_values:
                             inner_cv_results = []
 
@@ -207,7 +221,8 @@ def main():
                                 group_inner_train, group_inner_test = group[inner_train_idx], group[inner_val_idx]
 
                                 # Initialize and train the ThunderSVM model
-                                svm = SVC(kernel=kernel_type, C=C, coef0=coef0, tol=tol)
+                                #svm = SVC(kernel=kernel_type, C=C, coef0=coef0, tol=tol)
+                                svm = SVC(kernel=kernel_type, C=C, gamma=gamma, tol=tol)
                                 svm.fit(X_inner_train, y_inner_train)
 
                                 # Predict and evaluate
@@ -216,7 +231,8 @@ def main():
                                 inner_auc = roc_auc_score(y_inner_val, y_pred)
                                 inner_cv_results.append(inner_auc)
 
-                                logging.info(f"Inner Fold {inner_fold_number}: C={C}, coef0={coef0}, tol={tol}, ROC AUC={inner_auc:.4f} subjects in train {set(group_inner_train)} subjects in test {set(group_inner_test)}")
+                                #logging.info(f"Inner Fold {inner_fold_number}: C={C}, coef0={coef0}, tol={tol}, ROC AUC={inner_auc:.4f} subjects in train {set(group_inner_train)} subjects in test {set(group_inner_test)}")
+                                logging.info(f"Inner Fold {inner_fold_number}: C={C}, gamma={gamma}, tol={tol}, ROC AUC={inner_auc:.4f} subjects in train {set(group_inner_train)} subjects in test {set(group_inner_test)}")
 
                             # Average AUC for the current hyperparameter setting
                             mean_inner_auc = np.mean(inner_cv_results)
@@ -225,7 +241,8 @@ def main():
                             if mean_inner_auc > best_inner_auc:
                                 best_inner_auc = mean_inner_auc
                                 best_inner_model = svm
-                                best_inner_params = {'C': C, 'coef0': coef0, 'tol': tol}
+                                #best_inner_params = {'C': C, 'coef0': coef0, 'tol': tol}
+                                best_inner_params = {'C': C, 'gamma': gamma, 'tol': tol}
 
                 # Evaluate on the outer test set with the best model from inner loop
                 if best_inner_model is not None:
@@ -234,16 +251,20 @@ def main():
                     outer_auc = roc_auc_score(y_outer_test, y_pred)
                     outer_cv_results.append(outer_auc)
 
-                    logging.info(f"Outer Fold {outer_fold_number}: Best Parameters: C={best_inner_params['C']}, coef0={best_inner_params['coef0']}, tol={best_inner_params['tol']}, ROC AUC={outer_auc:.4f}")
+                    logging.info(f"Outer Fold {outer_fold_number}: Best Parameters: C={best_inner_params['C']}, gamma={best_inner_params['gamma']}, tol={best_inner_params['tol']}, ROC AUC={outer_auc:.4f}")
+                    #logging.info(f"Outer Fold {outer_fold_number}: Best Parameters: C={best_inner_params['C']}, coef0={best_inner_params['coef0']}, tol={best_inner_params['tol']}, ROC AUC={outer_auc:.4f}")
 
                     # Track the best model across outer folds
                     if outer_auc > best_auc:
+                    #if np.mean(outer_cv_results) > best_auc:
+                        #best_auc = np.mean(outer_cv_results)
                         best_auc = outer_auc
                         best_model = best_inner_model
                         best_params = best_inner_params
 
             # Report results
-            logging.info(f"Best model for {name}: C={best_params['C']}, coef0={best_params['coef0']}, tol={best_params['tol']}, ROC AUC={best_auc:.4f}")
+            logging.info(f"Best model for {name}: C={best_params['C']}, gamma={best_params['gamma']}, tol={best_params['tol']}, ROC AUC={best_auc:.4f}")
+            #logging.info(f"Best model for {name}: C={best_params['C']}, coef0={best_params['coef0']}, tol={best_params['tol']}, ROC AUC={best_auc:.4f}")
             logging.info(f"Mean AUC across outer folds: {np.mean(outer_cv_results):.4f}")
 
 
@@ -257,7 +278,7 @@ def main():
                 with open(result_file, 'wb') as f:
                     pickle.dump(best_model, f)
 
-        
+
 
 
 if __name__ == "__main__":

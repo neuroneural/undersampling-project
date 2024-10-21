@@ -2,12 +2,15 @@ import logging
 import argparse
 import pickle
 from datetime import datetime
+import time
+from pathlib import Path
 
 import pandas as pd
 import numpy as np
 
 from sklearn.metrics import roc_auc_score
 from sklearn.model_selection import StratifiedGroupKFold
+from sklearn.preprocessing import StandardScaler
 
 import scipy.io
 
@@ -29,7 +32,8 @@ def main():
     parser.add_argument('-i', '--snr-int', type=float, nargs='+', help='upper, lower, step of SNR interval', required=False)
     parser.add_argument('-f', '--n-folds', type=int, help='number of folds for cross-validation', required=False)
     parser.add_argument('-nn', '--num_noise', type=int, help='number of noise iterations', required=False)
-    parser.add_argument('-v', '--verbose', type=bool, help='turn on debug logging', required=False)
+    parser.add_argument('-v', '--verbose', action='store_true', help='turn on debug logging', required=False)
+    parser.add_argument('-o', '--optuna', action='store_true', help='use optuna weights', required=False)
     
     args = parser.parse_args()
     data_params = {}
@@ -63,6 +67,7 @@ def main():
     kernel_type = args.kernel_type
     num_noise = args.num_noise if args.num_noise != None else 1
     log_level = 'DEBUG' if args.verbose else 'INFO'
+    optuna = True if args.optuna else False
 
     logging.basicConfig(level=log_level, format='%(asctime)s - %(levelname)s - %(message)s')
 
@@ -73,6 +78,8 @@ def main():
     logging.info(f'Number of Folds: {n_folds}')
     logging.info(f'Kernel Type: {kernel_type}')
     logging.info(f'Noise Iterations: {num_noise}')
+    logging.info(f'Use Optuna Weights: {optuna}')
+
 
     data_params['noise_dataset'] = noise_dataset
     data_params['signal_dataset'] = signal_dataset
@@ -160,6 +167,19 @@ def main():
             X_concat, y_concat, group_concat = parse_X_y_groups(pd.DataFrame(concat_data), 'Concat')
 
 
+            scaler = StandardScaler()
+
+            X_tr100 = scaler.fit_transform(X_tr100)
+            X_tr2150 = scaler.fit_transform(X_tr2150)
+            X_add = scaler.fit_transform(X_add)
+            X_concat = scaler.fit_transform(X_concat)
+
+
+            y_tr100 = np.where(y_tr100 == '0', -1, 1)
+            y_tr2150 = np.where(y_tr2150 == '0', -1, 1)
+            y_add = np.where(y_add == '0', -1, 1)
+            y_concat = np.where(y_concat == '0', -1, 1)
+
 
             sgkf = StratifiedGroupKFold(n_splits=n_folds, shuffle=True, random_state=1)
 
@@ -183,19 +203,32 @@ def main():
                 #plot_cv_indices(sgkf, X, y, group, ax, n_folds, save_data, lw=10)
                 for fold_ix, (train_index, test_index) in enumerate(sgkf.split(X, y, group), start=0):
                     fold_scores = []
-                    _, X_test = X[train_index], X[test_index]
-                    _, y_test = y[train_index], y[test_index]
+                    X_train, X_test = X[train_index], X[test_index]
+                    y_train, y_test = y[train_index], y[test_index]
                     
                     logging.info(f'{name.upper()} - SNR {SNR} - noise_ix {noise_ix} - fold {fold_ix}')
                     logging.info(f'subjects in test {set(group[test_index])}')
 
                     # Load model weights and predict on test data
                     weights_dir = f'{project_dir}/assets/model_weights/{signal_dataset}/{kernel_type.lower()}'
-                    model_filename = f'{name}_best_model_SNR_{SNR}_{kernel_type.upper()}_{signal_dataset}_{noise_dataset}.pkl'
+                    if optuna:
+                        model_filename = f'{name}_best_model_SNR_{SNR}_{kernel_type.upper()}_{signal_dataset}_{noise_dataset}_optuna.pkl'
+                    else:
+                        model_filename = f'{name}_best_model_SNR_{SNR}_{kernel_type.upper()}_{signal_dataset}_{noise_dataset}.pkl'
+                    
                     model_path = f'{weights_dir}/{model_filename}'
 
-                    with open(model_path, 'rb') as file:
-                        svm = pickle.load(file)
+                    if optuna:
+                        with open(model_path, 'rb') as file:
+                            hp = pickle.load(file)
+                            C = hp['C']
+                            gamma = hp['gamma']
+                            tol = hp['tol']
+                            svm = SVC(kernel=kernel_type, C=C, gamma=gamma, tol=tol)
+                            svm.fit(X_train, y_train)
+                    else:
+                        with open(model_path, 'rb') as file:
+                            svm = pickle.load(file)
 
                     y_pred = svm.predict(X_test)
 
@@ -224,11 +257,21 @@ def main():
         pkl_dir = f'{project_dir}/{signal_dataset}/pkl-files/{noise_dataset}/SVM' if project_dir != '.' else '.'
 
         for key, data in results.items():
-            df = pd.DataFrame(data)
-            current_date = datetime.now().strftime('%Y-%m-%d')
-            filename = f'{key}_{SNR}_{noise_dataset}_{signal_dataset}_SVM_{kernel_type}_{current_date}.pkl'
-            df.to_pickle(f'{pkl_dir}/{filename}')
-            logging.info(f'saved results for {key} at {pkl_dir}/{filename}')
+            if data != []:
+                df = pd.DataFrame(data)
+                current_date = datetime.now().strftime('%Y-%m-%d') + '-' + str(int(time.time()))
+                month_date = '{}-{}'.format(datetime.now().strftime('%m'), datetime.now().strftime('%d'))
+
+                if optuna:
+                    filename = f'{key}_{SNR}_{noise_dataset}_{signal_dataset}_SVM_{kernel_type}_{current_date}_optuna.pkl'
+                else:
+                    filename = f'{key}_{SNR}_{noise_dataset}_{signal_dataset}_SVM_{kernel_type}_{current_date}.pkl'
+                
+                directory = Path(f'{pkl_dir}/{month_date}')
+                directory.mkdir(parents=True, exist_ok=True)
+
+                df.to_pickle(f'{pkl_dir}/{month_date}/{filename}')
+                logging.info(f'saved results for {key} at {pkl_dir}/{month_date}/{filename}')
 
 if __name__ == "__main__":
     main()

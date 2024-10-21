@@ -195,16 +195,7 @@ def perform_windowing(data_df):
             concat_sr1_sr2_noise = np.concatenate((sr1_noise_fnc_triu , sr2_noise_fnc_triu))
 
             add_sr1_sr2 = sr1_fnc_triu + sr2_fnc_triu
-            #original 
             add_sr1_sr2_noise = sr1_noise_fnc_triu + sr2_noise_fnc_triu
-            
-            #option 1
-            #add_sr1_sr2_noise *= .5
-            
-
-
-            #option 2
-            #add_sr1_sr2_noise = sr1_noise_fnc_triu + sr2_fnc_triu
 
             sr1_data.append({'subject': subject, 'SR1_Window': sr1_fnc_triu, 'target': '0'})
             sr1_data.append({'subject': subject, 'SR1_Window': sr1_noise_fnc_triu, 'target': '1'})
