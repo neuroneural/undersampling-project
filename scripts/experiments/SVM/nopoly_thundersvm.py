@@ -14,7 +14,8 @@ from sklearn.preprocessing import StandardScaler
 
 import scipy.io
 
-from thundersvm import SVC
+#from thundersvm import SVC
+from sklearn.linear_model import LogisticRegression
 
 from utils.usp_utils import *
 
@@ -27,13 +28,15 @@ def main():
     
     parser.add_argument('-n', '--noise-dataset', type=str, help='noise dataset name', required=True)
     parser.add_argument('-s', '--signal-dataset', type=str, help='signal dataset name', required=True)
-    parser.add_argument('-k', '--kernel-type', type=str, choices=['linear', 'rbf'], help='type of SVM kernel', required=True)
+    #parser.add_argument('-k', '--kernel-type', type=str, choices=['linear', 'rbf'], help='type of SVM kernel', required=True)
 
     parser.add_argument('-i', '--snr-int', type=float, nargs='+', help='upper, lower, step of SNR interval', required=False)
     parser.add_argument('-f', '--n-folds', type=int, help='number of folds for cross-validation', required=False)
     parser.add_argument('-nn', '--num_noise', type=int, help='number of noise iterations', required=False)
     parser.add_argument('-v', '--verbose', action='store_true', help='turn on debug logging', required=False)
     parser.add_argument('-o', '--optuna', action='store_true', help='use optuna weights', required=False)
+    parser.add_argument('-g', '--sampler', type=str, choices=['tpe', 'random'], help='sampler type', required=False)
+
     
     args = parser.parse_args()
     data_params = {}
@@ -68,6 +71,7 @@ def main():
     num_noise = args.num_noise if args.num_noise != None else 1
     log_level = 'DEBUG' if args.verbose else 'INFO'
     optuna = True if args.optuna else False
+    sampler = args.sampler
 
     logging.basicConfig(level=log_level, format='%(asctime)s - %(levelname)s - %(message)s')
 
@@ -79,6 +83,7 @@ def main():
     logging.info(f'Kernel Type: {kernel_type}')
     logging.info(f'Noise Iterations: {num_noise}')
     logging.info(f'Use Optuna Weights: {optuna}')
+    logging.info(f'Optuna Sampler Type: {sampler}')
 
 
     data_params['noise_dataset'] = noise_dataset
@@ -212,7 +217,10 @@ def main():
                     # Load model weights and predict on test data
                     weights_dir = f'{project_dir}/assets/model_weights/{signal_dataset}/{kernel_type.lower()}'
                     if optuna:
-                        model_filename = f'{name}_best_model_SNR_{SNR}_{kernel_type.upper()}_{signal_dataset}_{noise_dataset}_optuna.pkl'
+                        if sampler != None:
+                            model_filename = f'{name}_best_model_SNR_{SNR}_{kernel_type.upper()}_{signal_dataset}_{noise_dataset}_optuna_{sampler}.pkl'
+                        else:
+                            model_filename = f'{name}_best_model_SNR_{SNR}_{kernel_type.upper()}_{signal_dataset}_{noise_dataset}_optuna.pkl'
                     else:
                         model_filename = f'{name}_best_model_SNR_{SNR}_{kernel_type.upper()}_{signal_dataset}_{noise_dataset}.pkl'
                     
@@ -222,15 +230,19 @@ def main():
                         with open(model_path, 'rb') as file:
                             hp = pickle.load(file)
                             C = hp['C']
-                            gamma = hp['gamma']
-                            tol = hp['tol']
-                            svm = SVC(kernel=kernel_type, C=C, gamma=gamma, tol=tol)
-                            svm.fit(X_train, y_train)
+                            #gamma = hp['gamma']
+                            #tol = hp['tol']
+                            #svm = SVC(kernel=kernel_type, C=C, gamma=gamma, tol=tol)
+                            #svm.fit(X_train, y_train)
+
+                            model = LogisticRegression(fit_intercept=True, solver='lbfgs', penalty='l2')
+                            model.fit(X_train, y_train)
                     else:
                         with open(model_path, 'rb') as file:
                             svm = pickle.load(file)
 
-                    y_pred = svm.predict(X_test)
+                    #y_pred = svm.predict(X_test)
+                    y_pred = model.predict(X_test)
 
                     fold_score = roc_auc_score(y_test, np.array(y_pred))
                     fold_scores.append(fold_score)
@@ -246,7 +258,8 @@ def main():
                             'fold'             : fold_ix, 
                             'roc'              : fold_score,
                             'sampling_rate'    : name,
-                            'classifier'       : 'SVM'
+                            #'classifier'       : 'SVM'
+                            'classifier'       : 'Logistic Regression'
                         }
                     )
                     
@@ -254,7 +267,9 @@ def main():
                 logging.info(f'Average ROC AUC for {name}: {avg_roc}')
 
 
-        pkl_dir = f'{project_dir}/{signal_dataset}/pkl-files/{noise_dataset}/SVM' if project_dir != '.' else '.'
+        pkl_dir = f'{project_dir}/{signal_dataset}/pkl-files/{noise_dataset}/Logistic-Regression' if project_dir != '.' else '.'
+        directory = Path(f'{pkl_dir}')
+        directory.mkdir(parents=True, exist_ok=True)
 
         for key, data in results.items():
             if data != []:
@@ -263,9 +278,12 @@ def main():
                 month_date = '{}-{}'.format(datetime.now().strftime('%m'), datetime.now().strftime('%d'))
 
                 if optuna:
-                    filename = f'{key}_{SNR}_{noise_dataset}_{signal_dataset}_SVM_{kernel_type}_{current_date}_optuna.pkl'
+                    if sampler != None:
+                        filename = f'{key}_{SNR}_{noise_dataset}_{signal_dataset}_Logistic_Regression_{kernel_type}_{current_date}_optuna_{sampler}.pkl'
+                    else:
+                        filename = f'{key}_{SNR}_{noise_dataset}_{signal_dataset}_Logistic_Regression_{kernel_type}_{current_date}_optuna.pkl'
                 else:
-                    filename = f'{key}_{SNR}_{noise_dataset}_{signal_dataset}_SVM_{kernel_type}_{current_date}.pkl'
+                    filename = f'{key}_{SNR}_{noise_dataset}_{signal_dataset}_Logistic_Regression_{kernel_type}_{current_date}.pkl'
                 
                 directory = Path(f'{pkl_dir}/{month_date}')
                 directory.mkdir(parents=True, exist_ok=True)

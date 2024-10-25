@@ -5,7 +5,7 @@ import pandas as pd
 
 # Define the datasets and other parameters
 signal_datasets = ['OULU', 'HCP']
-noise_datasets = ['FBIRN']#, 'COBRE', 'VAR']
+noise_datasets = ['COBRE', 'COBRE']#, 'VAR']
 sampling_rates = ['sr1', 'sr2', 'add', 'concat']
 optuna = True
 

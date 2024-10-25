@@ -14,15 +14,18 @@ from sklearn.preprocessing import StandardScaler
 import optuna
 from optuna import Trial
 from optuna.samplers import TPESampler
+from optuna.samplers import RandomSampler
+
 from utils.usp_utils import *
-from thundersvm import SVC
+#from thundersvm import SVC
+from sklearn.linear_model import LogisticRegression
 
 
 def objective(trial: Trial, X, y, group, kernel_type, sgkf):
     # Hyperparameter search space
-    C = trial.suggest_loguniform('C', 1e-2, 1e2)
-    gamma = trial.suggest_loguniform('gamma', 1e-9, 1e-1)
-    tol = trial.suggest_loguniform('tol', 1e-4, 1e-1)
+    C = trial.suggest_loguniform('C', 1e-2, 1e3)
+    #gamma = trial.suggest_loguniform('gamma', 1e-5, 1e-2)
+    #tol = trial.suggest_loguniform('tol', 1e-6, 1)
     
     outer_cv_results = []
 
@@ -32,11 +35,18 @@ def objective(trial: Trial, X, y, group, kernel_type, sgkf):
         y_outer_train, y_outer_test = y[outer_train_idx], y[outer_test_idx]
 
         # Initialize and train the ThunderSVM model
-        svm = SVC(kernel=kernel_type, C=C, gamma=gamma, tol=tol)
-        svm.fit(X_outer_train, y_outer_train)
+        #svm = SVC(kernel=kernel_type, C=C, gamma=gamma, tol=tol)
+        #svm.fit(X_outer_train, y_outer_train)
+
+        model = LogisticRegression(fit_intercept=True, solver='lbfgs', penalty='l2')
+        model.fit(X_outer_train, y_outer_train)
+
 
         # Predict and evaluate
-        y_pred = svm.predict(X_outer_test)
+        #y_pred = svm.predict(X_outer_test)
+        y_pred = model.predict(X_outer_test)
+
+
         outer_auc = roc_auc_score(y_outer_test, y_pred)
         outer_cv_results.append(outer_auc)
 
@@ -56,6 +66,7 @@ def main():
     parser.add_argument('-i', '--snr-int', type=float, nargs='+', help='upper, lower, step of SNR interval', required=False)
     parser.add_argument('-f', '--n-folds', type=int, help='number of folds for cross-validation', required=False)
     parser.add_argument('-v', '--verbose', type=bool, help='turn on debug logging', required=False)
+    parser.add_argument('-g', '--sampler', type=str, choices=['tpe', 'random'], help='sampler type', required=False)
 
     args = parser.parse_args()
 
@@ -87,6 +98,8 @@ def main():
 
     signal_dataset = args.signal_dataset.upper()
     noise_dataset = args.noise_dataset.upper()
+
+    sampler = args.sampler if args.sampler != None else 'tpe'
 
     data_params = {}
     data_params['noise_dataset'] = noise_dataset
@@ -143,7 +156,16 @@ def main():
         NOISE_SIZE = 1200
         undersampling_rate = 6
 
-    
+
+    kernel_type = args.kernel_type
+
+    logging.info(f'Noise Interval: {SNRs}')
+    logging.info(f'Noise Dataset: {noise_dataset}')
+    logging.info(f'Signal Dataset: {signal_dataset}')
+    logging.info(f'Number of Folds: {n_folds}')
+    logging.info(f'Kernel Type: {kernel_type}')
+    logging.info(f'Sampler Type: {sampler}')
+
     
 
     data_params['NOISE_SIZE'] = NOISE_SIZE
@@ -172,16 +194,20 @@ def main():
             y = np.where(y == '0', -1, 1)
 
             # Run Optuna optimization
-            study = optuna.create_study(direction='maximize', sampler=TPESampler())
-            study.optimize(lambda trial: objective(trial, X, y, group, args.kernel_type, sgkf), n_trials=50)
+            if sampler == 'tpe':
+                study = optuna.create_study(direction='maximize', sampler=TPESampler())
+            else:
+                study = optuna.create_study(direction='maximize', sampler=RandomSampler())
+
+            study.optimize(lambda trial: objective(trial, X, y, group, kernel_type, sgkf), n_trials=50)
 
             best_trial = study.best_trial
 
             logging.info(f"Best model for {name} (SNR {SNR}): {best_trial.params}, ROC AUC: {best_trial.value:.4f}")
 
             # Save best model hyperparameters and results
-            result_path = f'{project_dir}/assets/model_weights/{signal_dataset}/{args.kernel_type}'
-            filename = f'{name}_best_model_SNR_{SNR}_{args.kernel_type.upper()}_{signal_dataset}_{noise_dataset}_optuna.pkl'
+            result_path = f'{project_dir}/assets/model_weights/{signal_dataset}/{kernel_type}'
+            filename = f'{name}_best_model_SNR_{SNR}_{kernel_type.upper()}_{signal_dataset}_{noise_dataset}_optuna_{sampler}.pkl'
             result_file = f'{result_path}/{filename}'
 
             with open(result_file, 'wb') as f:
