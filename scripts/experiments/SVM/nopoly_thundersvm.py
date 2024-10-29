@@ -67,7 +67,8 @@ def main():
     noise_dataset = args.noise_dataset.upper()
     signal_dataset = args.signal_dataset.upper()
     n_folds = args.n_folds if args.n_folds != None else 7
-    kernel_type = args.kernel_type
+    #kernel_type = args.kernel_type
+    kernel_type = "none"
     num_noise = args.num_noise if args.num_noise != None else 1
     log_level = 'DEBUG' if args.verbose else 'INFO'
     optuna = True if args.optuna else False
@@ -218,7 +219,7 @@ def main():
                     weights_dir = f'{project_dir}/assets/model_weights/{signal_dataset}/{kernel_type.lower()}'
                     if optuna:
                         if sampler != None:
-                            model_filename = f'{name}_best_model_SNR_{SNR}_{kernel_type.upper()}_{signal_dataset}_{noise_dataset}_optuna_{sampler}.pkl'
+                            model_filename = f'{name}_best_model_SNR_{SNR}_{kernel_type.upper()}_{signal_dataset}_{noise_dataset}_optuna_{sampler}_LR-test.pkl'
                         else:
                             model_filename = f'{name}_best_model_SNR_{SNR}_{kernel_type.upper()}_{signal_dataset}_{noise_dataset}_optuna.pkl'
                     else:
@@ -235,7 +236,7 @@ def main():
                             #svm = SVC(kernel=kernel_type, C=C, gamma=gamma, tol=tol)
                             #svm.fit(X_train, y_train)
 
-                            model = LogisticRegression(fit_intercept=True, solver='lbfgs', penalty='l2')
+                            model = LogisticRegression(fit_intercept=True, solver='lbfgs', penalty='l2', C=C)
                             model.fit(X_train, y_train)
                     else:
                         with open(model_path, 'rb') as file:

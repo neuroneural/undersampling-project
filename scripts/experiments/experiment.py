@@ -1,6 +1,8 @@
 import logging
 import argparse
 from datetime import datetime
+from pathlib import Path
+
 
 import pandas as pd
 import numpy as np
@@ -9,6 +11,8 @@ import scipy.io
 
 from utils.polyssifier import poly
 from utils.usp_utils import *
+
+from sklearn.linear_model import LogisticRegression
 
 
 
@@ -103,13 +107,13 @@ def main():
 
     else:
         L = noise_data['L']
-        covariance_matrix = noise_data['cov_mat']
+        correlation_matrix = noise_data['corr_mat']
 
         logging.debug(f'L {L}')
-        logging.debug(f'covariance_matrix {covariance_matrix}')
+        logging.debug(f'correlation_matrix {correlation_matrix}')
 
         data_params['L'] = L
-        data_params['covariance_matrix'] = covariance_matrix
+        data_params['correlation_matrix'] = correlation_matrix
 
     if signal_dataset == 'OULU':
         undersampling_rate = 1
@@ -179,9 +183,23 @@ def main():
 
             for name, X, y, group in datasets:
                 logging.info(f'run polyssifier for for {name}')
+
+                # Add experiment for LR using optuna parameters and same data as other 3 classifiers. 
+                sampler = 'tpe'
+                kernel_type = 'none'
+
+                model_filename = f'{name}_best_model_SNR_{SNR}_{kernel_type.upper()}_{signal_dataset}_{noise_dataset}_optuna_{sampler}_LR-test.pkl'
+                weights_dir = f'{project_dir}/assets/model_weights/{signal_dataset}/{kernel_type.lower()}'
+                model_path = f'{weights_dir}/{model_filename}'
+
+                data_params['sampler'] = sampler
+                data_params['kernel_type'] = kernel_type
+                data_params['model_path'] = model_path
+
                 report = poly(data=X, label=y, groups=group, n_folds=n_folds, scale=True, concurrency=n_threads, save=False, 
-                            exclude=['Decision Tree', 'Random Forest', 'Voting', 'Nearest Neighbors', 'Linear SVM', 'SVM'], scoring='auc', 
-                            project_name=name)
+                            exclude=['Decision Tree', 'Random Forest', 'Voting', 'Nearest Neighbors', 
+                                     'Linear SVM', 'SVM'], scoring='auc', 
+                            project_name=name, data_params=data_params)
                 
                 for classifier in report.scores.columns.levels[0]:
                     if classifier == 'Voting':
@@ -201,9 +219,11 @@ def main():
                         }
                     )
                     
-                    
 
                     logging.info(f'{name} - SNR {SNR} - noise iteration {noise_ix} - scores {scores}')
+
+
+
 
         pkl_dir = f'{project_dir}/{signal_dataset}/pkl-files/{noise_dataset}' if project_dir != '.' else '.'
         logging.info(f'pkl_dir: {pkl_dir}')
@@ -212,8 +232,14 @@ def main():
             if data != []:
                 df = pd.DataFrame(data)
                 current_date = datetime.now().strftime('%Y-%m-%d')
+                month_date = '{}-{}'.format(datetime.now().strftime('%m'), datetime.now().strftime('%d'))
+
                 filename = f'{key}_{SNR}_{noise_dataset}_{signal_dataset}_{current_date}.pkl'
-                df.to_pickle(f'{pkl_dir}/{filename}')
+
+                directory = Path(f'{pkl_dir}/{month_date}')
+                directory.mkdir(parents=True, exist_ok=True)
+
+                df.to_pickle(f'{pkl_dir}/{month_date}/{filename}')
                 logging.info(f'saved results for {key} at {pkl_dir}/{filename}')
 
 if __name__ == "__main__":

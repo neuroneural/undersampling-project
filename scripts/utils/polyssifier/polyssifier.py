@@ -24,7 +24,7 @@ logger = logging.getLogger(__name__)
 
 def poly(data, label, groups=None, n_folds=10, scale=True, exclude=[],
          feature_selection=False, save=False, scoring='auc',
-         project_name='', concurrency=1, verbose=True, random_state=1988):
+         project_name='', concurrency=1, verbose=True, random_state=1988, data_params=None):
     '''
     Input
     data         = numpy matrix with as many rows as samples
@@ -63,7 +63,7 @@ def poly(data, label, groups=None, n_folds=10, scale=True, exclude=[],
     logger.info('Building classifiers ...')
     classifiers = build_classifiers(exclude, scale,
                                     feature_selection,
-                                    data.shape[1])
+                                    data.shape[1], data_params)
 
     scores = pd.DataFrame(columns=pd.MultiIndex.from_product(
         [classifiers.keys(), ['train', 'test']]),
@@ -449,13 +449,17 @@ def fit_clf(args, clf_name, val, n_fold, project_name, save, scoring):
         clf = joblib.load(file_name)
     else:
         logger.info(f'Training {clf_name} for fold {n_fold}')
-        clf = deepcopy(val['clf'])
-        if val['parameters']:
-            clf = GridSearchCV(clf, val['parameters'], n_jobs=1, cv=3,
-                               scoring=_scorer)
-        clf.fit(X, y)
-        if save:
-            joblib.dump(clf, file_name)
+        if clf_name == 'LR Optuna':
+            clf = deepcopy(val['clf'])
+            clf.fit(X, y)
+        else:
+            clf = deepcopy(val['clf'])
+            if val['parameters']:
+                clf = GridSearchCV(clf, val['parameters'], n_jobs=1, cv=3,
+                                scoring=_scorer)
+            clf.fit(X, y)
+            if save:
+                joblib.dump(clf, file_name)
 
     train_score = _scorer(clf, X, y)
     logger.info(f'{clf_name} {n_fold} Train Score: {train_score}')

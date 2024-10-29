@@ -1,6 +1,7 @@
 import logging
 import argparse
 import pickle
+from pathlib import Path
 
 import pandas as pd
 import numpy as np
@@ -62,7 +63,9 @@ def main():
 
     parser.add_argument('-n', '--noise-dataset', type=str, help='noise dataset name', required=True)
     parser.add_argument('-s', '--signal-dataset', type=str, help='signal dataset name', required=True)
-    parser.add_argument('-k', '--kernel-type', type=str, choices=['linear', 'rbf'], help='type of SVM kernel', required=True)
+    #parser.add_argument('-k', '--kernel-type', type=str, choices=['linear', 'rbf'], help='type of SVM kernel', required=True)
+
+
     parser.add_argument('-i', '--snr-int', type=float, nargs='+', help='upper, lower, step of SNR interval', required=False)
     parser.add_argument('-f', '--n-folds', type=int, help='number of folds for cross-validation', required=False)
     parser.add_argument('-v', '--verbose', type=bool, help='turn on debug logging', required=False)
@@ -135,13 +138,13 @@ def main():
 
     else:
         L = noise_data['L']
-        covariance_matrix = noise_data['cov_mat']
+        correlation_matrix = noise_data['corr_mat']
 
         logging.debug(f'L {L}')
-        logging.debug(f'covariance_matrix {covariance_matrix}')
+        logging.debug(f'correlation_matrix {correlation_matrix}')
 
         data_params['L'] = L
-        data_params['covariance_matrix'] = covariance_matrix
+        data_params['correlation_matrix'] = correlation_matrix
 
 
     if signal_dataset == 'OULU':
@@ -157,7 +160,8 @@ def main():
         undersampling_rate = 6
 
 
-    kernel_type = args.kernel_type
+    #kernel_type = args.kernel_type
+    kernel_type = "none"
 
     logging.info(f'Noise Interval: {SNRs}')
     logging.info(f'Noise Dataset: {noise_dataset}')
@@ -207,8 +211,11 @@ def main():
 
             # Save best model hyperparameters and results
             result_path = f'{project_dir}/assets/model_weights/{signal_dataset}/{kernel_type}'
-            filename = f'{name}_best_model_SNR_{SNR}_{kernel_type.upper()}_{signal_dataset}_{noise_dataset}_optuna_{sampler}.pkl'
+            filename = f'{name}_best_model_SNR_{SNR}_{kernel_type.upper()}_{signal_dataset}_{noise_dataset}_optuna_{sampler}_LR-test.pkl'
             result_file = f'{result_path}/{filename}'
+
+            directory = Path(result_path)
+            directory.mkdir(parents=True, exist_ok=True)
 
             with open(result_file, 'wb') as f:
                 pickle.dump(best_trial.params, f)
