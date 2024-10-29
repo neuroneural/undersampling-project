@@ -24,7 +24,7 @@ from sklearn.linear_model import LogisticRegression
 
 def objective(trial: Trial, X, y, group, kernel_type, sgkf):
     # Hyperparameter search space
-    C = trial.suggest_loguniform('C', 1e-2, 1e3)
+    C = trial.suggest_loguniform('C', 0.001, 1)
     #gamma = trial.suggest_loguniform('gamma', 1e-5, 1e-2)
     #tol = trial.suggest_loguniform('tol', 1e-6, 1)
     
