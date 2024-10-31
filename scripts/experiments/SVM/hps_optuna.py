@@ -24,7 +24,7 @@ from sklearn.linear_model import LogisticRegression
 
 def objective(trial: Trial, X, y, group, kernel_type, sgkf):
     # Hyperparameter search space
-    C = trial.suggest_loguniform('C', 0.001, 1)
+    C = trial.suggest_float('C', 0.001, 1, log=True)
     #gamma = trial.suggest_loguniform('gamma', 1e-5, 1e-2)
     #tol = trial.suggest_loguniform('tol', 1e-6, 1)
     
@@ -39,7 +39,7 @@ def objective(trial: Trial, X, y, group, kernel_type, sgkf):
         #svm = SVC(kernel=kernel_type, C=C, gamma=gamma, tol=tol)
         #svm.fit(X_outer_train, y_outer_train)
 
-        model = LogisticRegression(fit_intercept=True, solver='lbfgs', penalty='l2')
+        model = LogisticRegression(fit_intercept=True, solver='lbfgs', penalty='l2', max_iter=150)
         model.fit(X_outer_train, y_outer_train)
 
 

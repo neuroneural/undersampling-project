@@ -5,7 +5,7 @@ import pandas as pd
 
 # Define the datasets and other parameters
 signal_datasets = ['OULU', 'HCP']
-noise_datasets = ['COBRE', 'COBRE']#, 'VAR']
+noise_datasets = ['FBIRN']#, 'COBRE']#, 'VAR']
 sampling_rates = ['sr1', 'sr2', 'add', 'concat']
 optuna = True
 
@@ -38,7 +38,10 @@ for signal_ds in signal_datasets:
                 else:
                     file_name = f'{sr}_best_model_SNR_{noise_level}_RBF_{signal_ds}_{noise_ds}.pkl'
                 
-                file_path = os.path.join(base_dir, signal_ds, 'rbf', file_name)
+
+                file_name = f'{sr}_best_model_SNR_{noise_level}_NONE_{signal_ds}_{noise_ds}_optuna_tpe_LR-test.pkl'
+                #file_path = os.path.join(base_dir, signal_ds, 'rbf', file_name)
+                file_path = os.path.join(base_dir, signal_ds, 'none', file_name)
                 
                 # Check if the file exists
                 if os.path.exists(file_path):
@@ -49,8 +52,8 @@ for signal_ds in signal_datasets:
                             hps_dict = pickle.load(file)
                         
                         C_value = hps_dict['C']
-                        gamma_value = hps_dict['gamma']
-                        tol_value = hps_dict['tol']
+                        #gamma_value = hps_dict['gamma']
+                        #tol_value = hps_dict['tol']
                     else:
                         # Load the model
                         with open(file_path, 'rb') as file:
@@ -58,17 +61,17 @@ for signal_ds in signal_datasets:
                         
                         # Extract model parameters
                         C_value = model.C
-                        gamma_value = model.gamma
-                        tol_value = model.tol
+                        #gamma_value = model.gamma
+                        #tol_value = model.tol
                     
                     
                     # Append the row to the list
-                    rows.append([signal_ds, noise_ds, sr, noise_level, C_value, gamma_value, tol_value])
+                    rows.append([signal_ds, noise_ds, sr, noise_level, C_value])#, gamma_value, tol_value])
                 else:
                     print(f"File not found: {file_path}")
 
 # Create a DataFrame to store and display the table
-df = pd.DataFrame(rows, columns=['SIGNAL DS', 'NOISE DS', 'SR', 'NOISE LEVEL', 'C VALUE', 'GAMMA VALUE', 'TOL VALUE'])
+df = pd.DataFrame(rows, columns=['SIGNAL DS', 'NOISE DS', 'SR', 'NOISE LEVEL', 'C VALUE'])#, 'GAMMA VALUE', 'TOL VALUE'])
 
 # Save the DataFrame to a CSV file for further inspection
 output_file = 'model_weights_inspection_optuna.csv'

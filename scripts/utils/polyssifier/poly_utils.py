@@ -159,7 +159,7 @@ def build_classifiers(exclude, scale, feature_selection, nCols, data_params):
 
         classifiers['LR Optuna'] = {
             'clf': LogisticRegression(fit_intercept=True, solver='lbfgs',
-                                   penalty='l2', C=C),
+                                   penalty='l2', C=C, max_iter=150),
         }
         print(classifiers['LR Optuna'])
 
