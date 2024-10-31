@@ -20,9 +20,10 @@ from thundersvm import SVC
 
 def objective(trial: Trial, X, y, group, kernel_type, sgkf):
     # Hyperparameter search space
-    C = trial.suggest_loguniform('C', 1e-2, 1e2)
-    gamma = trial.suggest_loguniform('gamma', 1e-9, 1e-1)
-    tol = trial.suggest_loguniform('tol', 1e-4, 1e-1)
+    C = trial.suggest_float('C', 1, 1e3, log=True)
+    gamma = trial.suggest_float('gamma', 1e-5, 1, log=True)
+    tol = trial.suggest_float('tol', 1e-6, 2, log=True)
+
     
     outer_cv_results = []
 
@@ -57,7 +58,7 @@ def main():
 
     parser.add_argument('-i', '--snr-int', type=float, nargs='+', help='upper, lower, step of SNR interval', required=False)
     parser.add_argument('-f', '--n-folds', type=int, help='number of folds for cross-validation', required=False)
-    parser.add_argument('-v', '--verbose', type=bool, help='turn on debug logging', required=False)
+    parser.add_argument('-v', '--verbose', action='store_true', help='turn on debug logging', required=False)
     parser.add_argument('-cv', '--cov-mat', action='store_true', help='use covariance matrix', required=False)
 
     args = parser.parse_args()
@@ -91,7 +92,6 @@ def main():
     n_folds = args.n_folds if args.n_folds != None else 7
     kernel_type = args.kernel_type
     log_level = 'DEBUG' if args.verbose else 'INFO'
-    optuna = True if args.optuna else False
     cov_mat = True if args.cov_mat else False
     
     logging.basicConfig(level=log_level, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -104,7 +104,6 @@ def main():
     logging.info(f'Signal Dataset: {signal_dataset}')
     logging.info(f'Number of Folds: {n_folds}')
     logging.info(f'Kernel Type: {kernel_type}')
-    logging.info(f'Use Optuna Weights: {optuna}')
     logging.info(f'Covariance matrix: {cov_mat}')
     logging.info(f'Correlation matrix: {not cov_mat}')
 
@@ -114,13 +113,12 @@ def main():
     data_params['noise_dataset'] = noise_dataset
     data_params['signal_dataset'] = signal_dataset
 
-    signal_data = pd.read_pickle(f'{project_dir}/assets/data/cov/{signal_dataset}_data.pkl') if cov_mat \
-        else pd.read_pickle(f'{project_dir}/assets/data/{signal_dataset}_data.pkl')
+    signal_data = pd.read_pickle(f'{project_dir}/assets/data/{signal_dataset}_data.pkl')
     
     noise_data = scipy.io.loadmat(f'{project_dir}/assets/data/cov/{noise_dataset}_data.mat') if cov_mat \
-        else pd.read_pickle(f'{project_dir}/assets/data/{signal_dataset}_data.pkl')
+        else scipy.io.loadmat(f'{project_dir}/assets/data/{noise_dataset}_data.mat')
     
-    
+
     subjects = np.unique(signal_data['subject'])
     data_params['subjects'] = subjects
 
@@ -210,8 +208,11 @@ def main():
 
             # Save best model hyperparameters and results
             result_path = f'{project_dir}/assets/model_weights/{signal_dataset}/{kernel_type}'
+
             filename = f'{name}_best_model_SNR_{SNR}_{kernel_type.upper()}_{signal_dataset}_{noise_dataset}_optuna.pkl' if cov_mat \
                 else f'{name}_best_model_SNR_{SNR}_{kernel_type.upper()}_{signal_dataset}_{noise_dataset}_optuna_corr.pkl'
+            
+            
             result_file = f'{result_path}/{filename}'
 
             with open(result_file, 'wb') as f:

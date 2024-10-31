@@ -77,11 +77,10 @@ def main():
     data_params['noise_dataset'] = noise_dataset
     data_params['signal_dataset'] = signal_dataset
 
-    signal_data = pd.read_pickle(f'{project_dir}/assets/data/cov/{signal_dataset}_data.pkl') if cov_mat \
-        else pd.read_pickle(f'{project_dir}/assets/data/{signal_dataset}_data.pkl')
+    signal_data = pd.read_pickle(f'{project_dir}/assets/data/{signal_dataset}_data.pkl')
     
     noise_data = scipy.io.loadmat(f'{project_dir}/assets/data/cov/{noise_dataset}_data.mat') if cov_mat \
-        else pd.read_pickle(f'{project_dir}/assets/data/{signal_dataset}_data.pkl')
+        else pd.scipy.io.loadmat(f'{project_dir}/assets/data/{noise_dataset}_data.mat')
 
     subjects = np.unique(signal_data['subject'])
     data_params['subjects'] = subjects

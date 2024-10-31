@@ -88,11 +88,10 @@ def main():
     data_params['noise_dataset'] = noise_dataset
     data_params['signal_dataset'] = signal_dataset
 
-    signal_data = pd.read_pickle(f'{project_dir}/assets/data/cov/{signal_dataset}_data.pkl') if cov_mat \
-        else pd.read_pickle(f'{project_dir}/assets/data/{signal_dataset}_data.pkl')
+    signal_data = pd.read_pickle(f'{project_dir}/assets/data/{signal_dataset}_data.pkl')
     
     noise_data = scipy.io.loadmat(f'{project_dir}/assets/data/cov/{noise_dataset}_data.mat') if cov_mat \
-        else pd.read_pickle(f'{project_dir}/assets/data/{signal_dataset}_data.pkl')
+        else scipy.io.loadmat(f'{project_dir}/assets/data/{noise_dataset}_data.mat')
 
     subjects = np.unique(signal_data['subject'])
     data_params['subjects'] = subjects
@@ -224,7 +223,8 @@ def main():
                     # Load model weights and predict on test data
                     weights_dir = f'{project_dir}/assets/model_weights/{signal_dataset}/{kernel_type.lower()}'
                     if optuna:
-                        model_filename = f'{name}_best_model_SNR_{SNR}_{kernel_type.upper()}_{signal_dataset}_{noise_dataset}_optuna.pkl'
+                        model_filename = f'{name}_best_model_SNR_{SNR}_{kernel_type.upper()}_{signal_dataset}_{noise_dataset}_optuna.pkl' if cov_mat \
+                            else f'{name}_best_model_SNR_{SNR}_{kernel_type.upper()}_{signal_dataset}_{noise_dataset}_optuna_corr.pkl'
                     else:
                         model_filename = f'{name}_best_model_SNR_{SNR}_{kernel_type.upper()}_{signal_dataset}_{noise_dataset}.pkl'
                     
