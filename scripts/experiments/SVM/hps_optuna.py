@@ -53,9 +53,12 @@ def main():
     parser.add_argument('-n', '--noise-dataset', type=str, help='noise dataset name', required=True)
     parser.add_argument('-s', '--signal-dataset', type=str, help='signal dataset name', required=True)
     parser.add_argument('-k', '--kernel-type', type=str, choices=['linear', 'rbf'], help='type of SVM kernel', required=True)
+
+
     parser.add_argument('-i', '--snr-int', type=float, nargs='+', help='upper, lower, step of SNR interval', required=False)
     parser.add_argument('-f', '--n-folds', type=int, help='number of folds for cross-validation', required=False)
     parser.add_argument('-v', '--verbose', type=bool, help='turn on debug logging', required=False)
+    parser.add_argument('-cv', '--cov-mat', action='store_true', help='use covariance matrix', required=False)
 
     args = parser.parse_args()
 
@@ -80,22 +83,44 @@ def main():
         if len(args.snr_int) == 1:
             SNRs = [args.snr_int[0]]
     
-    n_folds = args.n_folds if args.n_folds != None else 7
-    log_level = 'DEBUG' if args.verbose else 'INFO'
 
+    
+
+    noise_dataset = args.noise_dataset.upper()
+    signal_dataset = args.signal_dataset.upper()
+    n_folds = args.n_folds if args.n_folds != None else 7
+    kernel_type = args.kernel_type
+    log_level = 'DEBUG' if args.verbose else 'INFO'
+    optuna = True if args.optuna else False
+    cov_mat = True if args.cov_mat else False
+    
     logging.basicConfig(level=log_level, format='%(asctime)s - %(levelname)s - %(message)s')
 
-    signal_dataset = args.signal_dataset.upper()
-    noise_dataset = args.noise_dataset.upper()
+
+
+    # Print the parsed arguments to verify
+    logging.info(f'Noise Interval: {SNRs}')
+    logging.info(f'Noise Dataset: {noise_dataset}')
+    logging.info(f'Signal Dataset: {signal_dataset}')
+    logging.info(f'Number of Folds: {n_folds}')
+    logging.info(f'Kernel Type: {kernel_type}')
+    logging.info(f'Use Optuna Weights: {optuna}')
+    logging.info(f'Covariance matrix: {cov_mat}')
+    logging.info(f'Correlation matrix: {not cov_mat}')
+
+
 
     data_params = {}
     data_params['noise_dataset'] = noise_dataset
     data_params['signal_dataset'] = signal_dataset
 
-
-    signal_data = pd.read_pickle(f'{project_dir}/assets/data/{signal_dataset}_data.pkl')
-    noise_data = scipy.io.loadmat(f'{project_dir}/assets/data/{noise_dataset}_data.mat')
-
+    signal_data = pd.read_pickle(f'{project_dir}/assets/data/cov/{signal_dataset}_data.pkl') if cov_mat \
+        else pd.read_pickle(f'{project_dir}/assets/data/{signal_dataset}_data.pkl')
+    
+    noise_data = scipy.io.loadmat(f'{project_dir}/assets/data/cov/{noise_dataset}_data.mat') if cov_mat \
+        else pd.read_pickle(f'{project_dir}/assets/data/{signal_dataset}_data.pkl')
+    
+    
     subjects = np.unique(signal_data['subject'])
     data_params['subjects'] = subjects
 
@@ -122,13 +147,17 @@ def main():
 
     else:
         L = noise_data['L']
-        covariance_matrix = noise_data['cov_mat']
-
         logging.debug(f'L {L}')
-        logging.debug(f'covariance_matrix {covariance_matrix}')
-
         data_params['L'] = L
-        data_params['covariance_matrix'] = covariance_matrix
+
+        if cov_mat:
+            covariance_matrix = noise_data['cov_mat']    
+            logging.debug(f'covariance_matrix {covariance_matrix}')
+            data_params['covariance_matrix'] = covariance_matrix
+        else:
+            correlation_matrix = noise_data['corr_mat']    
+            logging.debug(f'correlation_matrix {correlation_matrix}')
+            data_params['correlation_matrix'] = correlation_matrix
 
 
     if signal_dataset == 'OULU':
@@ -173,15 +202,16 @@ def main():
 
             # Run Optuna optimization
             study = optuna.create_study(direction='maximize', sampler=TPESampler())
-            study.optimize(lambda trial: objective(trial, X, y, group, args.kernel_type, sgkf), n_trials=50)
+            study.optimize(lambda trial: objective(trial, X, y, group, kernel_type, sgkf), n_trials=50)
 
             best_trial = study.best_trial
 
             logging.info(f"Best model for {name} (SNR {SNR}): {best_trial.params}, ROC AUC: {best_trial.value:.4f}")
 
             # Save best model hyperparameters and results
-            result_path = f'{project_dir}/assets/model_weights/{signal_dataset}/{args.kernel_type}'
-            filename = f'{name}_best_model_SNR_{SNR}_{args.kernel_type.upper()}_{signal_dataset}_{noise_dataset}_optuna.pkl'
+            result_path = f'{project_dir}/assets/model_weights/{signal_dataset}/{kernel_type}'
+            filename = f'{name}_best_model_SNR_{SNR}_{kernel_type.upper()}_{signal_dataset}_{noise_dataset}_optuna.pkl' if cov_mat \
+                else f'{name}_best_model_SNR_{SNR}_{kernel_type.upper()}_{signal_dataset}_{noise_dataset}_optuna_corr.pkl'
             result_file = f'{result_path}/{filename}'
 
             with open(result_file, 'wb') as f:

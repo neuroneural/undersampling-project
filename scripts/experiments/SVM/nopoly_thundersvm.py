@@ -34,6 +34,7 @@ def main():
     parser.add_argument('-nn', '--num_noise', type=int, help='number of noise iterations', required=False)
     parser.add_argument('-v', '--verbose', action='store_true', help='turn on debug logging', required=False)
     parser.add_argument('-o', '--optuna', action='store_true', help='use optuna weights', required=False)
+    parser.add_argument('-cv', '--cov-mat', action='store_true', help='use covariance matrix', required=False)
     
     args = parser.parse_args()
     data_params = {}
@@ -68,6 +69,7 @@ def main():
     num_noise = args.num_noise if args.num_noise != None else 1
     log_level = 'DEBUG' if args.verbose else 'INFO'
     optuna = True if args.optuna else False
+    cov_mat = True if args.cov_mat else False
 
     logging.basicConfig(level=log_level, format='%(asctime)s - %(levelname)s - %(message)s')
 
@@ -79,13 +81,18 @@ def main():
     logging.info(f'Kernel Type: {kernel_type}')
     logging.info(f'Noise Iterations: {num_noise}')
     logging.info(f'Use Optuna Weights: {optuna}')
+    logging.info(f'Covariance matrix: {cov_mat}')
+    logging.info(f'Correlation matrix: {not cov_mat}')
 
 
     data_params['noise_dataset'] = noise_dataset
     data_params['signal_dataset'] = signal_dataset
 
-    signal_data = pd.read_pickle(f'{project_dir}/assets/data/{signal_dataset}_data.pkl')
-    noise_data = scipy.io.loadmat(f'{project_dir}/assets/data/{noise_dataset}_data.mat')
+    signal_data = pd.read_pickle(f'{project_dir}/assets/data/cov/{signal_dataset}_data.pkl') if cov_mat \
+        else pd.read_pickle(f'{project_dir}/assets/data/{signal_dataset}_data.pkl')
+    
+    noise_data = scipy.io.loadmat(f'{project_dir}/assets/data/cov/{noise_dataset}_data.mat') if cov_mat \
+        else pd.read_pickle(f'{project_dir}/assets/data/{signal_dataset}_data.pkl')
 
     subjects = np.unique(signal_data['subject'])
     data_params['subjects'] = subjects
@@ -113,13 +120,18 @@ def main():
 
     else:
         L = noise_data['L']
-        covariance_matrix = noise_data['cov_mat']
-
         logging.debug(f'L {L}')
-        logging.debug(f'covariance_matrix {covariance_matrix}')
-
         data_params['L'] = L
-        data_params['covariance_matrix'] = covariance_matrix
+
+        if cov_mat:
+            covariance_matrix = noise_data['cov_mat']    
+            logging.debug(f'covariance_matrix {covariance_matrix}')
+            data_params['covariance_matrix'] = covariance_matrix
+        else:
+            correlation_matrix = noise_data['corr_mat']    
+            logging.debug(f'correlation_matrix {correlation_matrix}')
+            data_params['correlation_matrix'] = correlation_matrix
+
 
     if signal_dataset == 'OULU':
         undersampling_rate = 1
@@ -263,7 +275,8 @@ def main():
                 month_date = '{}-{}'.format(datetime.now().strftime('%m'), datetime.now().strftime('%d'))
 
                 if optuna:
-                    filename = f'{key}_{SNR}_{noise_dataset}_{signal_dataset}_SVM_{kernel_type}_{current_date}_optuna.pkl'
+                    filename = f'{key}_{SNR}_{noise_dataset}_{signal_dataset}_SVM_{kernel_type}_{current_date}_optuna.pkl' if cov_mat \
+                        else f'{key}_{SNR}_{noise_dataset}_{signal_dataset}_SVM_{kernel_type}_{current_date}_optuna_corr.pkl'
                 else:
                     filename = f'{key}_{SNR}_{noise_dataset}_{signal_dataset}_SVM_{kernel_type}_{current_date}.pkl'
                 
