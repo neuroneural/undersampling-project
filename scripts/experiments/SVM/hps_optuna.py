@@ -11,6 +11,7 @@ import scipy.io
 from sklearn.metrics import roc_auc_score
 from sklearn.model_selection import StratifiedGroupKFold
 from sklearn.preprocessing import StandardScaler
+from sklearn.preprocessing import MinMaxScaler
 
 import optuna
 from optuna import Trial
@@ -18,16 +19,70 @@ from optuna.samplers import TPESampler
 from optuna.samplers import RandomSampler
 
 from utils.usp_utils import *
-#from thundersvm import SVC
+from thundersvm import SVC
 from sklearn.linear_model import LogisticRegression
+from sklearn.neural_network import MLPClassifier
+from sklearn.naive_bayes import GaussianNB, MultinomialNB
 
 
-def objective(trial: Trial, X, y, group, kernel_type, sgkf):
-    # Hyperparameter search space
-    C = trial.suggest_float('C', 0.001, 1, log=True)
-    #gamma = trial.suggest_loguniform('gamma', 1e-5, 1e-2)
-    #tol = trial.suggest_loguniform('tol', 1e-6, 1)
+
+def objective(trial: Trial, X, y, group, model_type, kernel_type, sgkf):
     
+    hps_params = {}
+
+
+    # Hyperparameter search space
+    if model_type == 'svm':
+        C = trial.suggest_float('C', 1, 1e3, log=True)
+        gamma = trial.suggest_float('gamma', 1e-5, 1, log=True)
+        tol = trial.suggest_float('tol', 1e-6, 2, log=True)
+        
+        hps_params['C'] = C
+        hps_params['gamma'] = gamma
+        hps_params['tol'] = tol 
+
+    if model_type == 'lr':
+        C = trial.suggest_float('C', 0.001, 1, log=True)
+
+        hps_params['C'] = C
+    
+    if model_type == 'mlp':
+        hidden_layer_sizes = trial.suggest_categorical("hidden_layer_sizes", [(50,), (100,), (50, 50), (100, 100)])
+        activation = trial.suggest_categorical("activation", ["relu", "tanh", "logistic"])
+        solver = trial.suggest_categorical("solver", ["adam", "sgd"])
+        alpha = trial.suggest_float("alpha", 1e-5, 1e-2, log=True)
+        learning_rate = trial.suggest_categorical("learning_rate", ["constant", "invscaling", "adaptive"])
+        learning_rate_init = trial.suggest_float("learning_rate_init", 1e-4, 1e-1, log=True)
+
+        hps_params['hidden_layer_sizes'] = hidden_layer_sizes
+        hps_params['activation'] = activation
+        hps_params['solver'] = solver
+        hps_params['alpha'] = alpha
+        hps_params['learning_rate'] = learning_rate
+        hps_params['learning_rate_init'] = learning_rate_init
+
+    if model_type == 'nb':
+            hps_params['nb_type'] = trial.suggest_categorical("nb_type", ["gaussian", "multinomial"])
+
+            if hps_params['nb_type'] == "multinomial":
+                hps_params['alpha'] = trial.suggest_float("alpha", 1e-3, 10, log=True)
+
+
+
+    if model_type != 'nb':
+        scaler = StandardScaler()
+    if model_type == 'nb':
+        if hps_params['nb_type'] == "multinomial":
+            scaler = MinMaxScaler()
+        else:
+            scaler = StandardScaler()
+
+    X = scaler().fit_transform(X)
+            
+    if model_type == 'svm':
+        y = np.where(y == '0', -1, 1)
+
+
     outer_cv_results = []
 
     # Perform cross-validation within the trial
@@ -35,16 +90,42 @@ def objective(trial: Trial, X, y, group, kernel_type, sgkf):
         X_outer_train, X_outer_test = X[outer_train_idx], X[outer_test_idx]
         y_outer_train, y_outer_test = y[outer_train_idx], y[outer_test_idx]
 
-        # Initialize and train the ThunderSVM model
-        #svm = SVC(kernel=kernel_type, C=C, gamma=gamma, tol=tol)
-        #svm.fit(X_outer_train, y_outer_train)
 
-        model = LogisticRegression(fit_intercept=True, solver='lbfgs', penalty='l2', max_iter=150)
+
+        # Initialize the model based on script argument
+        if model_type == 'svm':
+            model = SVC(kernel=kernel_type, C=hps_params['C'], gamma=hps_params['gamma'], tol=hps_params['tol'])
+        
+        if model_type == 'lr':
+            model = LogisticRegression(fit_intercept=True, solver='lbfgs', penalty='l2', max_iter=150)
+
+        if model_type == 'mlp':
+            model = MLPClassifier(
+                hidden_layer_sizes=hps_params['hidden_layer_sizes'],
+                activation=hps_params['activation'],
+                solver=hps_params['solver'],
+                alpha=alpha,
+                learning_rate=hps_params['learning_rate'],
+                learning_rate_init=hps_params['learning_rate_init'],
+                max_iter=1000,
+                random_state=42
+            )
+        
+        if model_type == 'nb':
+            if hps_params['nb_type'] == "gaussian":
+                model = GaussianNB()
+
+            if hps_params['nb_type'] == "multinomial":
+                model = MultinomialNB(alpha=hps_params['alpha'])
+            
+        
+
+
+        # Fit the model
         model.fit(X_outer_train, y_outer_train)
 
 
         # Predict and evaluate
-        #y_pred = svm.predict(X_outer_test)
         y_pred = model.predict(X_outer_test)
 
 
@@ -63,7 +144,8 @@ def main():
 
     parser.add_argument('-n', '--noise-dataset', type=str, help='noise dataset name', required=True)
     parser.add_argument('-s', '--signal-dataset', type=str, help='signal dataset name', required=True)
-    #parser.add_argument('-k', '--kernel-type', type=str, choices=['linear', 'rbf'], help='type of SVM kernel', required=True)
+    parser.add_argument('-m', '--model-type', type=str, help='model type name', choices=['lr', 'mlp', 'svm', 'nb'], required=True)
+    parser.add_argument('-k', '--kernel-type', type=str, choices=['linear', 'rbf'], help='type of SVM kernel', required=False)
 
 
     parser.add_argument('-i', '--snr-int', type=float, nargs='+', help='upper, lower, step of SNR interval', required=False)
@@ -73,108 +155,51 @@ def main():
 
     args = parser.parse_args()
 
-    lower = 1.5
-    upper = 2.5
-    step = 0.1
-
-    SNRs = np.round(np.arange(lower, upper+step, step), 1)
-
-    if args.snr_int != None:
-        if len(args.snr_int) == 2:
-            lower = args.snr_int[0]
-            upper = args.snr_int[1]
-
-        if len(args.snr_int) == 3:
-            lower = args.snr_int[0]
-            upper = args.snr_int[1]
-            step = args.snr_int[2]
-
-        SNRs = np.round(np.arange(lower, upper+step, step), 1)
-
-        if len(args.snr_int) == 1:
-            SNRs = [args.snr_int[0]]
+    if args.model_type == 'svm' and not args.kernel_type:
+        parser.error("--kernel-type is required when --model-type is 'svm'")
+        sys.exit()
     
-    n_folds = args.n_folds if args.n_folds != None else 7
-    log_level = 'DEBUG' if args.verbose else 'INFO'
 
+    data_params = set_data_params(args, project_dir)
+
+
+    signal_dataset = data_params['signal_dataset']
+    noise_dataset = data_params['noise_dataset']
+    SNRs = data_params['SNRs']
+    signal_data = data_params['signal_data']
+    n_folds = int(data_params['n_folds'])
+    sampler = data_params['sampler']
+    model_type = data_params['model_type']
+    if 'kernel_type' in data_params:
+        kernel_type = data_params['kernel_type']
+    else: 
+        kernel_type = 'none'
+    log_level = data_params['log_level']
+
+
+    """
     logging.basicConfig(level=log_level, format='%(asctime)s - %(levelname)s - %(message)s')
 
-    signal_dataset = args.signal_dataset.upper()
-    noise_dataset = args.noise_dataset.upper()
-
-    sampler = args.sampler if args.sampler != None else 'tpe'
-
-    data_params = {}
-    data_params['noise_dataset'] = noise_dataset
-    data_params['signal_dataset'] = signal_dataset
-
-
-    signal_data = pd.read_pickle(f'{project_dir}/assets/data/{signal_dataset}_data.pkl')
-    noise_data = scipy.io.loadmat(f'{project_dir}/assets/data/{noise_dataset}_data.mat')
-
-    subjects = np.unique(signal_data['subject'])
-    data_params['subjects'] = subjects
-
-
-    if noise_dataset == "VAR":
-        A = noise_data['A']
-        u_rate = 1
-        nstd = 1.0
-        burn = 100
-        threshold = 0.0001
-        
-        logging.debug(f'A - {A}')
-        logging.debug(f'u_rate - {u_rate}')
-        logging.debug(f'nstd - {nstd}')
-        logging.debug(f'burn - {burn}')
-        logging.debug(f'threshold - {threshold}')
-
-
-        data_params['A'] = A
-        data_params['u_rate'] = u_rate
-        data_params['nstd'] = nstd
-        data_params['burn'] = burn
-        data_params['threshold'] = threshold
-
-    else:
-        L = noise_data['L']
-        correlation_matrix = noise_data['corr_mat']
-
-        logging.debug(f'L {L}')
-        logging.debug(f'correlation_matrix {correlation_matrix}')
-
-        data_params['L'] = L
-        data_params['correlation_matrix'] = correlation_matrix
-
-
-    if signal_dataset == 'OULU':
-        undersampling_rate = 1
-        NOISE_SIZE = 2961*2
     
-    if signal_dataset == 'SIMULATION':
-        undersampling_rate = 1
-        NOISE_SIZE = 18018 #might should write a function to compute this, it is LCM(t1*k1, t2*k2)
-
-    if signal_dataset == 'HCP':
-        NOISE_SIZE = 1200
-        undersampling_rate = 6
-
-
-    #kernel_type = args.kernel_type
-    kernel_type = "none"
-
     logging.info(f'Noise Interval: {SNRs}')
     logging.info(f'Noise Dataset: {noise_dataset}')
     logging.info(f'Signal Dataset: {signal_dataset}')
     logging.info(f'Number of Folds: {n_folds}')
     logging.info(f'Kernel Type: {kernel_type}')
     logging.info(f'Sampler Type: {sampler}')
+    logging.info(f'Model Type: {model_type}')
 
-    
+    """
 
-    data_params['NOISE_SIZE'] = NOISE_SIZE
-    data_params['undersampling_rate'] = undersampling_rate
 
+    print(f'Noise Interval: {SNRs}')
+    print(f'Noise Dataset: {noise_dataset}')
+    print(f'Signal Dataset: {signal_dataset}')
+    print(f'Number of Folds: {n_folds}')
+    print(f'Kernel Type: {kernel_type}')
+    print(f'Sampler Type: {sampler}')
+    print(f'Model Type: {model_type}')
+ 
     sgkf = StratifiedGroupKFold(n_splits=n_folds, shuffle=True, random_state=42)
 
     for SNR in SNRs:
@@ -194,8 +219,8 @@ def main():
 
         for name, dataset_df, window_type in datasets:
             X, y, group = parse_X_y_groups(dataset_df, window_type)
-            X = StandardScaler().fit_transform(X)
-            y = np.where(y == '0', -1, 1)
+            
+
 
             # Run Optuna optimization
             if sampler == 'tpe':
@@ -203,15 +228,20 @@ def main():
             else:
                 study = optuna.create_study(direction='maximize', sampler=RandomSampler())
 
-            study.optimize(lambda trial: objective(trial, X, y, group, kernel_type, sgkf), n_trials=50)
+            study.optimize(lambda trial: objective(trial, X, y, group, model_type, kernel_type, sgkf), n_trials=50)
 
             best_trial = study.best_trial
 
             logging.info(f"Best model for {name} (SNR {SNR}): {best_trial.params}, ROC AUC: {best_trial.value:.4f}")
 
             # Save best model hyperparameters and results
-            result_path = f'{project_dir}/assets/model_weights/{signal_dataset}/{kernel_type}'
-            filename = f'{name}_best_model_SNR_{SNR}_{kernel_type.upper()}_{signal_dataset}_{noise_dataset}_optuna_{sampler}_LR-test.pkl'
+            result_path = f'{project_dir}/assets/model_weights/{signal_dataset}/{kernel_type}' if model_type == 'svm' \
+                else f'{project_dir}/assets/model_weights/{signal_dataset}/{model_type}'
+            
+            filename = \
+                f'{name}_best_model_SNR_{SNR}_{kernel_type.upper()}_{signal_dataset}_{noise_dataset}_optuna_{sampler}.pkl' if model_type == 'svm' \
+                else f'{name}_best_model_SNR_{SNR}_{model_type.upper()}_{signal_dataset}_{noise_dataset}_optuna_{sampler}.pkl'
+            
             result_file = f'{result_path}/{filename}'
 
             directory = Path(result_path)

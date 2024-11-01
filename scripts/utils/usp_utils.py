@@ -2,6 +2,8 @@ import logging
 import pickle
 
 import numpy as np
+import pandas as pd
+import scipy
 import matplotlib.pyplot as plt
 
 from scipy.stats import zscore
@@ -385,3 +387,104 @@ def plot_cv_indices(cv, X, y, group, ax, n_splits, save_data, lw=10):
     fig.savefig(f'cvplot_{name}.png')
 
 
+def set_data_params(args, project_dir):
+    data_params = {}
+
+
+    lower = 1.5
+    upper = 2.5
+    step = 0.1
+
+    SNRs = np.round(np.arange(lower, upper+step, step), 1)
+
+    if args.snr_int != None:
+        if len(args.snr_int) == 2:
+            lower = args.snr_int[0]
+            upper = args.snr_int[1]
+
+        if len(args.snr_int) == 3:
+            lower = args.snr_int[0]
+            upper = args.snr_int[1]
+            step = args.snr_int[2]
+
+        SNRs = np.round(np.arange(lower, upper+step, step), 1)
+
+        if len(args.snr_int) == 1:
+            SNRs = [args.snr_int[0]]
+    
+    
+    
+
+    n_folds = args.n_folds if args.n_folds != None else 7
+    log_level = 'DEBUG' if args.verbose else 'INFO'
+    signal_dataset = args.signal_dataset.upper()
+    noise_dataset = args.noise_dataset.upper()
+    sampler = args.sampler if args.sampler != None else 'tpe'
+    model_type = args.model_type
+
+    signal_data = pd.read_pickle(f'{project_dir}/assets/data/{signal_dataset}_data.pkl')
+    noise_data = scipy.io.loadmat(f'{project_dir}/assets/data/{noise_dataset}_data.mat')
+
+    if noise_dataset == "VAR":
+        A = noise_data['A']
+        u_rate = 1
+        nstd = 1.0
+        burn = 100
+        threshold = 0.0001
+        
+        logging.debug(f'A - {A}')
+        logging.debug(f'u_rate - {u_rate}')
+        logging.debug(f'nstd - {nstd}')
+        logging.debug(f'burn - {burn}')
+        logging.debug(f'threshold - {threshold}')
+
+
+        data_params['A'] = A
+        data_params['u_rate'] = u_rate
+        data_params['nstd'] = nstd
+        data_params['burn'] = burn
+        data_params['threshold'] = threshold
+
+    else:
+        L = noise_data['L']
+        correlation_matrix = noise_data['corr_mat']
+
+        logging.debug(f'L {L}')
+        logging.debug(f'correlation_matrix {correlation_matrix}')
+
+        data_params['L'] = L
+        data_params['correlation_matrix'] = correlation_matrix
+
+
+    if signal_dataset == 'OULU':
+        undersampling_rate = 1
+        NOISE_SIZE = 2961*2
+    
+    if signal_dataset == 'SIMULATION':
+        undersampling_rate = 1
+        NOISE_SIZE = 18018 #might should write a function to compute this, it is LCM(t1*k1, t2*k2)
+
+    if signal_dataset == 'HCP':
+        NOISE_SIZE = 1200
+        undersampling_rate = 6
+
+    subjects = np.unique(signal_data['subject'])
+    
+    data_params['subjects'] = subjects
+    data_params['noise_dataset'] = noise_dataset
+    data_params['signal_dataset'] = signal_dataset
+    data_params['SNRs'] = SNRs
+    data_params['n_folds'] = n_folds
+    data_params['log_level'] = log_level
+    data_params['signal_dataset'] = signal_dataset
+    data_params['noise_dataset'] = noise_dataset
+    data_params['sampler'] = sampler
+    data_params['signal_data'] = signal_data
+    data_params['noise_data'] = noise_data
+    data_params['undersampling_rate'] = undersampling_rate
+    data_params['NOISE_SIZE'] = NOISE_SIZE
+    data_params['model_type'] = model_type
+
+
+
+    return data_params
