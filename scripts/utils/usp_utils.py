@@ -80,6 +80,8 @@ def parse_X_y_groups(data_df, name):
     group = le.fit_transform(data_df['subject'])
     y = data_df['target']
     y = np.array([str(entry) for entry in y])
+    le_y = LabelEncoder()
+    y = le_y.fit_transform(y)
     X = data_df[f'{name}_Window']
     X = np.array([np.array(entry) for entry in X])
     return X, y, group
@@ -415,18 +417,39 @@ def set_data_params(args, project_dir):
     
     
     
-
-    n_folds = args.n_folds if args.n_folds != None else 7
     log_level = 'DEBUG' if args.verbose else 'INFO'
-    signal_dataset = args.signal_dataset.upper()
+    
+    signal_dataset = args.signal_dataset.upper()    
     noise_dataset = args.noise_dataset.upper()
-    num_noise = args.num_noise if args.num_noise != None else 1
-    sampler = args.sampler if args.sampler != None else 'tpe'
-    model_type = args.model_type
+
 
     signal_data = pd.read_pickle(f'{project_dir}/assets/data/{signal_dataset}_data.pkl')
     noise_data = scipy.io.loadmat(f'{project_dir}/assets/data/{noise_dataset}_data.mat')
 
+
+    if hasattr(args, 'n_folds'):
+        n_folds = args.n_folds if args.n_folds != None else 7
+    else:
+        n_folds = 7
+
+    if hasattr(args, 'num_noise'):
+        num_noise = args.num_noise if args.num_noise != None else 1
+    else:
+        num_noise = 1
+    
+    if hasattr(args, 'sampler'):
+        sampler = args.sampler if args.sampler != None else 'tpe'
+    else:
+        sampler = 'none'
+    
+    if hasattr(args, 'model_type'):
+        model_type = args.model_type
+    else:
+        model_type = 'none'
+
+
+    
+    
     if noise_dataset == "VAR":
         A = noise_data['A']
         u_rate = 1

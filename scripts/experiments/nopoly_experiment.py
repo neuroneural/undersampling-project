@@ -176,9 +176,10 @@ def main():
                     
 
                 for name, X, y, group in datasets:
+
                     if clf_shortname == 'nb':
                         if nb_type != 'gaussian':
-                            scaler = MinMaxScaler(feature_range=(1,1))
+                            scaler = MinMaxScaler(feature_range=(0,1))
                         else:
                             scaler = StandardScaler()
                     else:
@@ -229,7 +230,7 @@ def main():
 
 
         #TODO: FIX THE SAVING OF RESULTS
-        pkl_dir = f'{project_dir}/{signal_dataset}/pkl-files/{noise_dataset}/Logistic-Regression' if project_dir != '.' else '.'
+        pkl_dir = f'{project_dir}/{signal_dataset}/pkl-files/{noise_dataset}/optuna' if project_dir != '.' else '.'
         directory = Path(f'{pkl_dir}')
         directory.mkdir(parents=True, exist_ok=True)
 
@@ -240,7 +241,7 @@ def main():
                 month_date = '{}-{}'.format(datetime.now().strftime('%m'), datetime.now().strftime('%d'))
 
                 
-                filename = f'{key}_{SNR}_{noise_dataset}_{signal_dataset}_Logistic_Regression_{kernel_type}_{current_date}.pkl'
+                filename = f'{key}_{SNR}_{noise_dataset}_{signal_dataset}{clf_shortname}{kernel_type}_{current_date}.pkl'
                 
                 directory = Path(f'{pkl_dir}/{month_date}')
                 directory.mkdir(parents=True, exist_ok=True)

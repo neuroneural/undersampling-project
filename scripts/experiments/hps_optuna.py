@@ -73,11 +73,11 @@ def objective(trial: Trial, X, y, group, model_type, kernel_type, sgkf):
         scaler = StandardScaler()
     if model_type == 'nb':
         if hps_params['nb_type'] == "multinomial":
-            scaler = MinMaxScaler()
+            scaler = MinMaxScaler(feature_range=(0, 1))
         else:
             scaler = StandardScaler()
 
-    X = scaler().fit_transform(X)
+    X = scaler.fit_transform(X)
             
     if model_type == 'svm':
         y = np.where(y == '0', -1, 1)
