@@ -1,3 +1,0 @@
-signal_ds: oulu
-noise_df: cobre
-kernel: rbf

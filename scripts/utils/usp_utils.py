@@ -247,6 +247,7 @@ def load_timecourses(signal_data, data_params):
     undersampling_rate = data_params['undersampling_rate']
     SNR = data_params['SNR']
     
+    
 
 
     noises = {} if noise_dataset != 'VAR' else create_var_noise(A, subjects, threshold, u_rate, burn, NOISE_SIZE, nstd)
@@ -419,6 +420,7 @@ def set_data_params(args, project_dir):
     log_level = 'DEBUG' if args.verbose else 'INFO'
     signal_dataset = args.signal_dataset.upper()
     noise_dataset = args.noise_dataset.upper()
+    num_noise = args.num_noise if args.num_noise != None else 1
     sampler = args.sampler if args.sampler != None else 'tpe'
     model_type = args.model_type
 
@@ -484,6 +486,7 @@ def set_data_params(args, project_dir):
     data_params['undersampling_rate'] = undersampling_rate
     data_params['NOISE_SIZE'] = NOISE_SIZE
     data_params['model_type'] = model_type
+    data_params["num_noise"] = num_noise
 
 
 
