@@ -42,6 +42,9 @@ def main():
     cov_mat = data_params['cov_mat']
 
     logging.basicConfig(level=log_level, format='%(asctime)s - %(levelname)s - %(message)s')
+    logger = logging.getLogger() 
+
+
 
     logging.info(f'Noise Interval: {SNRs}')
     logging.info(f'Noise Dataset: {noise_dataset}')
@@ -69,6 +72,7 @@ def main():
         data_params['SNR'] = SNR
 
         for noise_ix in range(num_noise):
+            data_params['noise_ix'] = noise_ix
 
             ################ loading and preprocessing
             all_data = load_timecourses(signal_data, data_params)
@@ -96,11 +100,15 @@ def main():
 
 
 
-            for name, X, y, group in datasets:
-                logging.info(f'run polyssifier for for {name}')
+            for sr, X, y, group in datasets:
+                data_params['name'] = sr
+
+                logging.info(f'\n\n\n\t\t\tSNR {SNR} - noise_ix {noise_ix} - sr {sr.upper()}')
+
+
                 report = poly(data=X, label=y, groups=group, n_folds=n_folds, scale=True, concurrency=1, save=False, 
                             exclude=['Decision Tree', 'Random Forest', 'Voting', 'Nearest Neighbors', 'Linear SVM'], scoring='auc', 
-                            project_name=name)
+                            project_name=sr)
                 
                 for classifier in report.scores.columns.levels[0]:
                     if classifier == 'Voting':
@@ -108,7 +116,7 @@ def main():
                     
                     scores = report.scores[classifier, 'test']
 
-                    results[name].append(
+                    results[sr].append(
                         {
                             'noise_no': noise_ix,
                             'snr': SNR,
@@ -120,7 +128,7 @@ def main():
                         }
                     )
 
-                    logging.info(f'{name} - SNR {SNR} - noise iteration {noise_ix} - scores {scores}')
+                    logging.info(f'SNR {SNR} - noise_ix {noise_ix} - sr {sr} - scores {scores}')
 
         pkl_dir = f'{project_dir}/{signal_dataset}/pkl-files/{noise_dataset}' if project_dir != '.' else '.'
         logging.info(f'pkl_dir: {pkl_dir}')
