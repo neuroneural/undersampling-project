@@ -1,4 +1,5 @@
 from datetime import *
+import logging
 
 import numpy as np
 import pandas as pd
@@ -61,7 +62,7 @@ def perform_windowing(data_df):
     concat_data = []
     subjects = np.unique(data_df['Subject_ID'])
     for subject in subjects:
-        ##logging.debug(f'begin windowing for subject {subject}')
+        logging.debug(f'begin windowing for subject {subject}')
 
         
         sr1 = data_df[data_df['Subject_ID'] == subject]['SR1_Timecourse'].iloc[0]
@@ -160,17 +161,17 @@ def load_timecourses(signal_data, data_params):
         if (noise_dataset == 'FBIRN') or (noise_dataset == 'COBRE'):
             noises[subject] = create_colored_noise(covariance_matrix, L, NOISE_SIZE) if cov_mat \
                   else create_colored_noise(correlation_matrix, L, NOISE_SIZE)
-            #logging.debug(f'computed noise for subject: {subject}')
+            logging.debug(f'computed noise for subject: {subject}')
 
             if signal_dataset == 'SIMULATION': 
                 noises[subject] = noises[subject][:5, :]
-            #logging.debug(f'noises[subject].shape {noises[subject].shape}')
+            logging.debug(f'noises[subject].shape {noises[subject].shape}')
                 
 
 
-        #logging.debug(f'loading timecourse for subject {subject}')
+        logging.debug(f'loading timecourse for subject {subject}')
         if signal_dataset == 'HCP': 
-            #logging.debug('HCP dataset detected during loading')
+            logging.debug('HCP dataset detected during loading')
             sr1_tc = signal_data[
                 signal_data['subject'] == subject
             ]['ica_timecourse'].iloc[0]
@@ -178,14 +179,14 @@ def load_timecourses(signal_data, data_params):
 
         else:
             tr1 = signal_data.iloc[0]['sampling_rate'].replace('TR', '')
-            #logging.debug(f'TR {tr1} detected during loading')
+            logging.debug(f'TR {tr1} detected during loading')
             sr1_tc = signal_data[
                 (signal_data['subject'] == subject) & 
                 (signal_data['sampling_rate'] == f'TR{tr1}')
             ]['ica_timecourse'].iloc[0]
 
             tr2 = signal_data.iloc[1]['sampling_rate'].replace('TR', '')
-            #logging.debug(f'TR {tr2} detected during loading')
+            logging.debug(f'TR {tr2} detected during loading')
             sr2_tc = signal_data[
                 (signal_data['subject'] == subject) & 
                 (signal_data['sampling_rate'] == f'TR{tr2}')
@@ -196,8 +197,8 @@ def load_timecourses(signal_data, data_params):
         sr2_tc = preprocess_timecourse(sr2_tc) if signal_dataset == 'OULU' else sr1_tc[:,::undersampling_rate]
 
         
-        #logging.debug(f'subject {subject} SR1 shape - {sr1_tc.shape}')
-        #logging.debug(f'subject {subject} SR2 shape - {sr2_tc.shape}')
+        logging.debug(f'subject {subject} SR1 shape - {sr1_tc.shape}')
+        logging.debug(f'subject {subject} SR2 shape - {sr2_tc.shape}')
 
 
         # sample from noise and scale
@@ -322,6 +323,9 @@ def set_data_params(args, project_dir):
     
     
     log_level = 'DEBUG' if args.verbose else 'INFO'
+
+    logging.basicConfig(level=log_level, format='%(asctime)s - %(levelname)s - %(message)s')
+
     
     signal_dataset = args.signal_dataset.upper()    
     noise_dataset = args.noise_dataset.upper()
@@ -369,15 +373,15 @@ def set_data_params(args, project_dir):
 
     if cov_mat:
         covariance_matrix = noise_data['cov_mat']    
-        #logging.debug(f'covariance_matrix {covariance_matrix}')
+        logging.debug(f'covariance_matrix {covariance_matrix}')
         data_params['covariance_matrix'] = covariance_matrix
     else:
         correlation_matrix = noise_data['corr_mat']    
-        #logging.debug(f'correlation_matrix {correlation_matrix}')
+        logging.debug(f'correlation_matrix {correlation_matrix}')
         data_params['correlation_matrix'] = correlation_matrix
 
-    #logging.debug(f'L {L}')
-    #logging.debug(f'correlation_matrix {correlation_matrix}')
+    logging.debug(f'L {L}')
+    logging.debug(f'correlation_matrix {correlation_matrix}')
 
     data_params['L'] = L
 
