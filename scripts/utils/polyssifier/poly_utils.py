@@ -20,6 +20,8 @@ from sklearn.preprocessing import StandardScaler
 from sklearn.gaussian_process.kernels import RBF
 
 
+import pickle
+
 class MyVoter(object):
     """
     Voter Classifier
