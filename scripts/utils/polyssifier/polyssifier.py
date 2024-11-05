@@ -449,17 +449,13 @@ def fit_clf(args, clf_name, val, n_fold, project_name, save, scoring):
         clf = joblib.load(file_name)
     else:
         logger.info(f'Training {clf_name} for fold {n_fold}')
-        if clf_name == 'LR Optuna':
-            clf = deepcopy(val['clf'])
-            clf.fit(X, y)
-        else:
-            clf = deepcopy(val['clf'])
-            if val['parameters']:
-                clf = GridSearchCV(clf, val['parameters'], n_jobs=1, cv=3,
-                                scoring=_scorer)
-            clf.fit(X, y)
-            if save:
-                joblib.dump(clf, file_name)
+        clf = deepcopy(val['clf'])
+        if val['parameters']:
+            clf = GridSearchCV(clf, val['parameters'], n_jobs=1, cv=3,
+                            scoring=_scorer)
+        clf.fit(X, y)
+        if save:
+            joblib.dump(clf, file_name)
 
     train_score = _scorer(clf, X, y)
     logger.info(f'{clf_name} {n_fold} Train Score: {train_score}')
