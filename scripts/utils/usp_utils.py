@@ -224,137 +224,17 @@ def perform_windowing(data_df):
     return sr1_data, sr2_data, add_data, concat_data
 
 
-def tune_svm(X, y, group, param_grid):
-    k_values = param_grid['k_values']
-    name = param_grid['name']
-
-    param_grid = {
-        'C' : param_grid['C'],
-        'tol' : param_grid['tol'],
-    }
-
-
-    best_auc = -float('inf')
-    best_model = None
-    best_params = None
-
-    # Iterate over the different k values for StratifiedGroupKFold
-    for k in k_values:
-        logging.info(f"Testing with k={k} folds in StratifiedGroupKFold")
-
-        # Outer cross-validation loop
-        outer_skgkf = StratifiedGroupKFold(n_splits=k, shuffle=True, random_state=42)
-        outer_cv_results = []
-
-        for train_idx, test_idx in outer_skgkf.split(X, y, groups=group):
-            X_train, X_test = X[train_idx], X[test_idx]
-            y_train, y_test = y[train_idx], y[test_idx]
-            group_train, group_test = group[train_idx], group[test_idx]
-
-            # Inner cross-validation with GridSearchCV
-            inner_skgkf = StratifiedGroupKFold(n_splits=k, shuffle=True, random_state=42)
-            svm = SVC(kernel='rbf', probability=True)
-            
-            # Define the scoring strategy
-            scoring = make_scorer(roc_auc_score, needs_proba=True)
-            
-            grid_search = GridSearchCV(svm, param_grid, scoring=scoring, cv=inner_skgkf, n_jobs=-1, verbose=4)
-            grid_search.fit(X_train, y_train, groups=group_train)
-            
-            # Evaluate the model on the outer fold's test set
-            best_model_fold = grid_search.best_estimator_
-            y_pred_proba = best_model_fold.predict_proba(X_test)[:, 1]
-            auc_score = roc_auc_score(y_test, y_pred_proba)
-            outer_cv_results.append(auc_score)
-
-            # Track the best model based on AUC
-            if auc_score > best_auc:
-                best_auc = auc_score
-                best_model = best_model_fold
-                best_params = grid_search.best_params_
-
-        # Report results
-        logging.info(f"Best model for {name} with k={k}: C={best_params['C']}, tol={best_params['tol']}, ROC AUC={best_auc:.4f}")
-        logging.info(f"Mean AUC across outer folds for k={k}: {np.mean(outer_cv_results):.4f}")
-
-
-    return best_model
-
-
-def fit_svm(X, y, group, model_info, k):
-    sampling_rates = ['sr1', 'sr2', 'add', 'concat']
-
-    weights_dir = model_info['weights_dir']
-    model_filename = model_info['model_filename']
-    model_path = f'{weights_dir}/{model_filename}'
-    
-    filename_str = model_filename.split('_')
-    sampling_rate = filename_str[0] if filename_str[0] in sampling_rates else filename_str[1]
-    snr = filename_str[4] if filename_str[4] != 'SNR' else filename_str[5]
-    logging.info(f'sampling_rate {sampling_rate}')
-    logging.info(f'snr {snr}')
-
-
-    sgkf = StratifiedGroupKFold(n_splits=k, shuffle=True, random_state=42)
-    fold_scores = {}
-    for fold_ix, (train_index, test_index) in enumerate(sgkf.split(X, y, group), start=0):
-        _, X_test = X[train_index], X[test_index]
-        _, y_test = y[train_index], y[test_index]
-
-        with open(model_path, 'rb') as file:
-            svm = pickle.load(file)
-
-        y_pred = svm.predict(X_test).astype(np.int8)
-        y_test = y_test.astype(np.int8)
-        
-        fold_score = roc_auc_score(y_test, y_pred)
-        fold_scores[fold_ix] = fold_score
-        test_subs = set(group[test_index])
-        plot_and_save_confusion_matrix(y_test, y_pred, sampling_rate, snr, fold_ix, test_subs)
-
-        
-    return fold_scores
-
-
-
-def plot_and_save_confusion_matrix(y_true, y_pred, save_data):
-    sampling_rate = save_data['sampling_rate']
-    snr = save_data['snr']
-    fold_ix = save_data['fold_ix']
-    test_subs = save_data['test_subs']
-    noise_dataset = save_data['noise_dataset']
-    signal_dataset = save_data['signal_dataset']
-    noise_ix = save_data['noise_ix']
-
-    y_true = y_true.astype(np.int8)
-    y_pred = y_pred.astype(np.int8)
-    # Generate the confusion matrix
-    cm = confusion_matrix(y_true, y_pred)
-    disp = ConfusionMatrixDisplay(confusion_matrix=cm)
-    auc = roc_auc_score(y_true, y_pred)
-    
-    # Create the plot title
-    auc_rounded = f'{auc:.3g}'
-    plot_title = f'{sampling_rate.upper()} - SNR {snr} - Fold {fold_ix} - AUC {auc_rounded} \n  Fold {fold_ix} - Subs in Test {test_subs} '
-    
-    # Plot the confusion matrix without showing it
-    fig, ax = plt.subplots()
-    disp.plot(ax=ax)
-    ax.set_title(plot_title)
-    
-    # Save the confusion matrix plot to the current directory
-    plot_filename = f'confusion_matrix_{sampling_rate}_SNR_{snr}_Fold_{fold_ix}_noise_{noise_ix}_{signal_dataset}_{noise_dataset}.png'
-    plt.savefig(plot_filename)
-    plt.close(fig)  # Close the figure to avoid showing the plot
-
-    print(f"Confusion matrix saved as {plot_filename}")
-
-
 
 def load_timecourses(signal_data, data_params):
     signal_dataset = data_params['signal_dataset']
     noise_dataset = data_params['noise_dataset']
     
+    cov_mat = True
+
+    if 'correlation_matrix' in data_params:
+        cov_mat = False
+        logging.debug(f'Use Correlation Matrix {not cov_mat}')
+
     if noise_dataset == 'VAR':
         A = data_params['A']
         nstd = data_params['nstd']
@@ -362,7 +242,11 @@ def load_timecourses(signal_data, data_params):
         u_rate = data_params['u_rate']
         burn = data_params['burn']
     else:
-        covariance_matrix = data_params['covariance_matrix']
+        if cov_mat:
+            covariance_matrix = data_params['covariance_matrix']
+        else:
+            correlation_matrix = data_params['correlation_matrix']
+
         L = data_params['L']
 
 
@@ -378,7 +262,9 @@ def load_timecourses(signal_data, data_params):
     all_data = []
     for subject in subjects:
         if noise_dataset != 'VAR':
-            noises[subject] = create_colored_noise(covariance_matrix, L, NOISE_SIZE)
+            noises[subject] = create_colored_noise(covariance_matrix, L, NOISE_SIZE) if cov_mat \
+                else create_colored_noise(correlation_matrix, L, NOISE_SIZE)
+            
             logging.debug(f'computed noise for subject: {subject}')
 
             if signal_dataset == 'SIMULATION': 
@@ -449,103 +335,3 @@ def load_timecourses(signal_data, data_params):
     ################ end loop over subjects
     
     return all_data
-
-
-def evaluate_weights_across_snr(all_snr_data, model_info, snr_levels, sampling_rates, k):
-    best_auc = -1
-    best_weights = None
-    
-    auc_scores = {
-        'sr1': {snr: -1 for snr in snr_levels},
-        'sr2': {snr: -1 for snr in snr_levels},
-        'add': {snr: -1 for snr in snr_levels},
-        'concat': {snr: -1 for snr in snr_levels},
-    }
-    
-    for snr in snr_levels:
-        datasets = all_snr_data[snr]
-
-        for sr, X, y, group in datasets:
-            
-            print(f"{sr.upper()} - Evaluating SNR level: {snr}")
-            fold_scores = fit_svm(X, y, group, model_info[sr][snr], k)
-            mean_auc = np.mean(list(fold_scores.values()))
-            auc_scores[sr][snr] = mean_auc
-            print(f"Mean AUC for sampling rate {sr}: {auc_scores[sr][snr]}")
-
-    for sr in sampling_rates:        
-        best_snr = max(auc_scores[sr], key=auc_scores[sr].get)
-        best_auc = auc_scores[sr][best_snr]
-
-        best_weights_dir = model_info[sr][best_snr]['weights_dir']
-        best_weights_filename = model_info[sr][best_snr]['model_filename']
-        best_weights_path = f'{best_weights_dir}/{best_weights_filename}'
-        #load best weights path 
-        with open(best_weights_path, 'rb') as file:
-            best_weights = pickle.load(file)
-        
-        print(f"{sr.upper()} - Best SNR: {best_snr} - Best AUC: {best_auc}")
-    return best_weights, best_auc
-
-
-
-def plot_cv_indices(cv, X, y, group, ax, n_splits, save_data, lw=10):
-    """Create a sample plot for indices of a cross-validation object."""
-    group = np.array(group, dtype=int)
-    y = np.array(y, dtype=int)
-    print(set(group))
-    cmap_cv = plt.cm.coolwarm
-    cmap_data = plt.cm.Paired
-
-    # Generate the training/testing visualizations for each CV split
-    for ii, (tr, tt) in enumerate(cv.split(X=X, y=y, groups=group)):
-        # Fill in indices with the training/test groups
-        indices = np.array([np.nan] * len(X))
-        indices[tt] = 1
-        indices[tr] = 0
-
-        # Visualize the results
-        ax.scatter(
-            range(len(indices)),
-            [ii + 0.5] * len(indices),
-            c=indices,
-            marker="_",
-            lw=lw,
-            cmap=cmap_cv,
-            vmin=-0.2,
-            vmax=1.2,
-        )
-
-    # Plot the data classes and groups at the end
-    ax.scatter(
-        range(len(X)), [ii + 1.5] * len(X), c=y, marker="_", lw=lw, cmap=cmap_data
-    )
-
-    ax.scatter(
-        range(len(X)), [ii + 2.5] * len(X), c=group, marker="_", lw=lw, cmap=cmap_data
-    )
-
-    # Formatting
-    yticklabels = list(range(n_splits)) + ["class", "group"]
-    ax.set(
-        yticks=np.arange(n_splits + 2) + 0.5,
-        yticklabels=yticklabels,
-        xlabel="Sample index",
-        ylabel="CV iteration",
-        ylim=[n_splits + 2.2, -0.2],
-        xlim=[0, 1600],
-    )
-    fig = ax.get_figure()
-    sampling_rate = save_data['sampling_rate']
-    snr = save_data['snr']
-    noise_dataset = save_data['noise_dataset']
-    signal_dataset = save_data['signal_dataset']
-
-    name = f'{sampling_rate}_{snr}_{noise_dataset}_{signal_dataset}'
-
-    ax.set_title("{}_{}".format(type(cv).__name__, name), fontsize=15)
-
-
-    fig.savefig(f'cvplot_{name}.png')
-
-
