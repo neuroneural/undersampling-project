@@ -6,12 +6,8 @@ from pathlib import Path
 import pandas as pd
 import numpy as np
 
-import scipy.io
-
 from utils.polyssifier import poly
 from utils.usp_utils import *
-
-from sklearn.linear_model import LogisticRegression
 
 
 
@@ -45,7 +41,6 @@ def main():
     cov_mat = data_params['cov_mat']
 
     logging.basicConfig(level=log_level, format='%(asctime)s - %(levelname)s - %(message)s')
-    logger = logging.getLogger() 
 
 
 
