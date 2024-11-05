@@ -97,7 +97,6 @@ def main():
 
 
             for name, X, y, group in datasets:
-                logging.basicConfig(level=log_level, format='%(asctime)s - %(levelname)s - %(SNR)s - %(noise_ix)s - %(name)s - %(message)s')
                 logging.info(f'run polyssifier for for {name}')
                 report = poly(data=X, label=y, groups=group, n_folds=n_folds, scale=True, concurrency=1, save=False, 
                             exclude=['Decision Tree', 'Random Forest', 'Voting', 'Nearest Neighbors', 'Linear SVM'], scoring='auc', 
