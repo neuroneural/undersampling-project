@@ -1,8 +1,4 @@
-import logging
-import pickle
 from datetime import *
-from pathlib import Path
-
 
 import numpy as np
 import pandas as pd
@@ -11,20 +7,12 @@ import matplotlib.pyplot as plt
 
 from scipy.stats import zscore
 from scipy.signal import detrend
-import scipy.sparse as sp
-from scipy.sparse.linalg import eigs
 
-from sklearn.model_selection import GridSearchCV, StratifiedGroupKFold
-from sklearn.metrics import make_scorer, roc_auc_score, confusion_matrix, ConfusionMatrixDisplay
-from sklearn.svm import SVC
 from sklearn.preprocessing import LabelEncoder
-from sklearn.decomposition import PCA
 
 
 
 def scale_noise(n, x, SNR):
-    #assert x.shape[0] == 53, 'timecourse dimension 0 should be 53'
-    #assert n.shape[0] == 53, 'noise dimension 0 should be 53'
     xTx = np.sum(np.square(x))
     nTn = np.sum(np.square(n))
     if nTn == 0:
@@ -73,7 +61,7 @@ def perform_windowing(data_df):
     concat_data = []
     subjects = np.unique(data_df['Subject_ID'])
     for subject in subjects:
-        logging.debug(f'begin windowing for subject {subject}')
+        ##logging.debug(f'begin windowing for subject {subject}')
 
         
         sr1 = data_df[data_df['Subject_ID'] == subject]['SR1_Timecourse'].iloc[0]
@@ -146,16 +134,15 @@ def perform_windowing(data_df):
 def load_timecourses(signal_data, data_params):
     signal_dataset = data_params['signal_dataset']
     noise_dataset = data_params['noise_dataset']
-    
-    if noise_dataset == 'VAR':
-        A = data_params['A']
-        nstd = data_params['nstd']
-        threshold = data_params['threshold']
-        u_rate = data_params['u_rate']
-        burn = data_params['burn']
+    cov_mat = data_params['cov_mat']
+
+    if cov_mat:
+        covariance_matrix = data_params['covariance_matrix']
     else:
         correlation_matrix = data_params['correlation_matrix']
-        L = data_params['L']
+    
+    
+    L = data_params['L']
 
 
     subjects = data_params['subjects']
@@ -166,23 +153,24 @@ def load_timecourses(signal_data, data_params):
     
 
 
-    noises = {} if noise_dataset != 'VAR' else create_var_noise(A, subjects, threshold, u_rate, burn, NOISE_SIZE, nstd)
+    noises = {}
     ################ loading and preprocessing
     all_data = []
     for subject in subjects:
-        if noise_dataset != 'VAR':
-            noises[subject] = create_colored_noise(correlation_matrix, L, NOISE_SIZE)
-            logging.debug(f'computed noise for subject: {subject}')
+        if (noise_dataset == 'FBIRN') or (noise_dataset == 'COBRE'):
+            noises[subject] = create_colored_noise(covariance_matrix, L, NOISE_SIZE) if cov_mat \
+                  else create_colored_noise(correlation_matrix, L, NOISE_SIZE)
+            #logging.debug(f'computed noise for subject: {subject}')
 
             if signal_dataset == 'SIMULATION': 
                 noises[subject] = noises[subject][:5, :]
-            logging.debug(f'noises[subject].shape {noises[subject].shape}')
+            #logging.debug(f'noises[subject].shape {noises[subject].shape}')
                 
 
 
-        logging.debug(f'loading timecourse for subject {subject}')
+        #logging.debug(f'loading timecourse for subject {subject}')
         if signal_dataset == 'HCP': 
-            logging.debug('HCP dataset detected during loading')
+            #logging.debug('HCP dataset detected during loading')
             sr1_tc = signal_data[
                 signal_data['subject'] == subject
             ]['ica_timecourse'].iloc[0]
@@ -190,14 +178,14 @@ def load_timecourses(signal_data, data_params):
 
         else:
             tr1 = signal_data.iloc[0]['sampling_rate'].replace('TR', '')
-            logging.debug(f'TR {tr1} detected during loading')
+            #logging.debug(f'TR {tr1} detected during loading')
             sr1_tc = signal_data[
                 (signal_data['subject'] == subject) & 
                 (signal_data['sampling_rate'] == f'TR{tr1}')
             ]['ica_timecourse'].iloc[0]
 
             tr2 = signal_data.iloc[1]['sampling_rate'].replace('TR', '')
-            logging.debug(f'TR {tr2} detected during loading')
+            #logging.debug(f'TR {tr2} detected during loading')
             sr2_tc = signal_data[
                 (signal_data['subject'] == subject) & 
                 (signal_data['sampling_rate'] == f'TR{tr2}')
@@ -208,8 +196,8 @@ def load_timecourses(signal_data, data_params):
         sr2_tc = preprocess_timecourse(sr2_tc) if signal_dataset == 'OULU' else sr1_tc[:,::undersampling_rate]
 
         
-        logging.debug(f'subject {subject} SR1 shape - {sr1_tc.shape}')
-        logging.debug(f'subject {subject} SR2 shape - {sr2_tc.shape}')
+        #logging.debug(f'subject {subject} SR1 shape - {sr1_tc.shape}')
+        #logging.debug(f'subject {subject} SR2 shape - {sr2_tc.shape}')
 
 
         # sample from noise and scale
@@ -339,9 +327,6 @@ def set_data_params(args, project_dir):
     noise_dataset = args.noise_dataset.upper()
 
 
-    signal_data = pd.read_pickle(f'{project_dir}/assets/data/{signal_dataset}_data.pkl')
-    noise_data = scipy.io.loadmat(f'{project_dir}/assets/data/{noise_dataset}_data.mat')
-
 
     if hasattr(args, 'n_folds'):
         n_folds = args.n_folds if args.n_folds != None else 7
@@ -363,38 +348,38 @@ def set_data_params(args, project_dir):
     else:
         kernel_type = 'none'
 
-
-    
-    
-    if noise_dataset == "VAR":
-        A = noise_data['A']
-        u_rate = 1
-        nstd = 1.0
-        burn = 100
-        threshold = 0.0001
-        
-        logging.debug(f'A - {A}')
-        logging.debug(f'u_rate - {u_rate}')
-        logging.debug(f'nstd - {nstd}')
-        logging.debug(f'burn - {burn}')
-        logging.debug(f'threshold - {threshold}')
-
-
-        data_params['A'] = A
-        data_params['u_rate'] = u_rate
-        data_params['nstd'] = nstd
-        data_params['burn'] = burn
-        data_params['threshold'] = threshold
-
+    if hasattr(args, 'cov_mat'):
+        cov_mat = args.cov_mat
     else:
-        L = noise_data['L']
-        correlation_matrix = noise_data['corr_mat']
+        cov_mat = False
 
-        logging.debug(f'L {L}')
-        logging.debug(f'correlation_matrix {correlation_matrix}')
 
-        data_params['L'] = L
+    signal_data = pd.read_pickle(f'{project_dir}/assets/data/{signal_dataset}_data.pkl')
+    noise_data = scipy.io.loadmat(f'{project_dir}/assets/data/cov/{noise_dataset}_data.mat') if cov_mat \
+        else scipy.io.loadmat(f'{project_dir}/assets/data/{noise_dataset}_data.mat')
+
+
+    
+
+    
+    
+
+    L = noise_data['L']
+    correlation_matrix = noise_data['corr_mat']
+
+    if cov_mat:
+        covariance_matrix = noise_data['cov_mat']    
+        #logging.debug(f'covariance_matrix {covariance_matrix}')
+        data_params['covariance_matrix'] = covariance_matrix
+    else:
+        correlation_matrix = noise_data['corr_mat']    
+        #logging.debug(f'correlation_matrix {correlation_matrix}')
         data_params['correlation_matrix'] = correlation_matrix
+
+    #logging.debug(f'L {L}')
+    #logging.debug(f'correlation_matrix {correlation_matrix}')
+
+    data_params['L'] = L
 
 
     if signal_dataset == 'OULU':
@@ -426,7 +411,7 @@ def set_data_params(args, project_dir):
     data_params['NOISE_SIZE'] = NOISE_SIZE
     data_params["num_noise"] = num_noise
     data_params["kernel_type"] = kernel_type
-
+    data_params['cov_mat'] = cov_mat
 
 
     return data_params
