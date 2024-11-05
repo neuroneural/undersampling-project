@@ -161,7 +161,7 @@ def load_timecourses(signal_data, data_params):
     ################ loading and preprocessing
     all_data = []
     for subject in subjects:
-        if noise_dataset == ('FBIRN' or 'COBRE'):
+        if (noise_dataset == 'FBIRN') or (noise_dataset == 'COBRE'):
             noises[subject] = create_colored_noise(correlation_matrix, L, NOISE_SIZE)
             #logging.debug(f'computed noise for subject: {subject}')
 
