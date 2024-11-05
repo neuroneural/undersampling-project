@@ -39,8 +39,17 @@ def main():
     n_folds = int(data_params['n_folds'])
     log_level = data_params['log_level']
     num_noise = data_params['num_noise']
+    cov_mat = data_params['cov_mat']
 
     logging.basicConfig(level=log_level, format='%(asctime)s - %(levelname)s - %(message)s')
+
+    logging.info(f'Noise Interval: {SNRs}')
+    logging.info(f'Noise Dataset: {noise_dataset}')
+    logging.info(f'Signal Dataset: {signal_dataset}')
+    logging.info(f'Number of Folds: {n_folds}')
+    logging.info(f'Noise Iterations: {num_noise}')
+    logging.info(f'Use correlation matrix: {not cov_mat}')
+    logging.info(f'Use covariance matrix: {cov_mat}')
 
     
 
@@ -88,6 +97,7 @@ def main():
 
 
             for name, X, y, group in datasets:
+                logging.basicConfig(level=log_level, format='%(asctime)s - %(levelname)s - %(SNR)s - %(noise_ix)s - %(name)s - %(message)s')
                 logging.info(f'run polyssifier for for {name}')
                 report = poly(data=X, label=y, groups=group, n_folds=n_folds, scale=True, concurrency=1, save=False, 
                             exclude=['Decision Tree', 'Random Forest', 'Voting', 'Nearest Neighbors', 'Linear SVM'], scoring='auc', 
