@@ -13,7 +13,12 @@ import matplotlib.pyplot as plt
 from scipy.stats import zscore
 from scipy.signal import detrend
 
-from sklearn.preprocessing import LabelEncoder
+from sklearn.preprocessing import StandardScaler, MinMaxScaler, LabelEncoder
+
+from thundersvm import SVC
+from sklearn.linear_model import LogisticRegression
+from sklearn.neural_network import MLPClassifier
+from sklearn.naive_bayes import GaussianNB, MultinomialNB
 
 
 
@@ -468,3 +473,101 @@ def set_data_params(args, project_dir):
 
 
     return data_params
+
+
+
+
+def set_hps_params(model_type, kernel_type, trial):
+    hps_params = {}
+
+    # Hyperparameter search space
+    if model_type == 'svm':
+        C = trial.suggest_float('C', 1, 1e3, log=True)
+        gamma = trial.suggest_float('gamma', 1e-5, 1, log=True)
+        tol = trial.suggest_float('tol', 1e-6, 2, log=True)
+        
+        hps_params['C'] = C
+        hps_params['gamma'] = gamma
+        hps_params['tol'] = tol 
+        hps_params['kernel_type'] = tol 
+
+    if model_type == 'lr':
+        C = trial.suggest_float('C', 0.001, 1, log=True)
+
+        hps_params['C'] = C
+    
+    if model_type == 'mlp':
+        hidden_layer_sizes = trial.suggest_categorical("hidden_layer_sizes", [(50,), (100,), (50, 50), (100, 100)])
+        activation = trial.suggest_categorical("activation", ["relu", "tanh", "logistic"])
+        solver = trial.suggest_categorical("solver", ["adam", "sgd"])
+        alpha = trial.suggest_float("alpha", 1e-5, 1e-2, log=True)
+        learning_rate = trial.suggest_categorical("learning_rate", ["constant", "invscaling", "adaptive"])
+        learning_rate_init = trial.suggest_float("learning_rate_init", 1e-4, 1e-1, log=True)
+
+        hps_params['hidden_layer_sizes'] = hidden_layer_sizes
+        hps_params['activation'] = activation
+        hps_params['solver'] = solver
+        hps_params['alpha'] = alpha
+        hps_params['learning_rate'] = learning_rate
+        hps_params['learning_rate_init'] = learning_rate_init
+
+    if model_type == 'nb':
+            hps_params['nb_type'] = trial.suggest_categorical("nb_type", ["gaussian", "multinomial"])
+
+            if hps_params['nb_type'] == "multinomial":
+                hps_params['alpha'] = trial.suggest_float("alpha", 1e-3, 10, log=True)
+    
+    return hps_params
+
+def set_scaler(model_type, hps_params):
+    if model_type != 'nb':
+        scaler = StandardScaler()
+    if model_type == 'nb':
+        if hps_params['nb_type'] == "multinomial":
+            scaler = MinMaxScaler(feature_range=(0, 1))
+        else:
+            scaler = StandardScaler()
+    
+    return scaler
+    
+def set_model(model_type, hps_params):
+    if model_type == 'svm':
+        model = SVC(kernel=hps_params['kernel_type'], C=hps_params['C'], gamma=hps_params['gamma'], tol=hps_params['tol'])
+    
+    if model_type == 'lr':
+        model = LogisticRegression(fit_intercept=True, solver='lbfgs', penalty='l2', max_iter=150)
+
+    if model_type == 'mlp':
+        model = MLPClassifier(
+            hidden_layer_sizes=hps_params['hidden_layer_sizes'],
+            activation=hps_params['activation'],
+            solver=hps_params['solver'],
+            alpha=hps_params['alpha'],
+            learning_rate=hps_params['learning_rate'],
+            learning_rate_init=hps_params['learning_rate_init'],
+            max_iter=200,
+            random_state=42
+        )
+    
+    if model_type == 'nb':
+        if hps_params['nb_type'] == "gaussian":
+            model = GaussianNB()
+
+        if hps_params['nb_type'] == "multinomial":
+            model = MultinomialNB(alpha=hps_params['alpha'])
+
+    return model
+
+
+def save_best_hyperparameters(data_params, best_trial):
+    result_path = get_resultpath(data_params)
+    filename = get_filename(data_params)
+        
+    
+    result_file = f'{result_path}/{filename}'
+
+    directory = Path(result_path)
+    directory.mkdir(parents=True, exist_ok=True)
+
+    with open(result_file, 'wb') as f:
+        pickle.dump(best_trial.params, f)

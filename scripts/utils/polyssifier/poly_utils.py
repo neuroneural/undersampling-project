@@ -146,26 +146,6 @@ def build_classifiers(exclude, scale, feature_selection, nCols, data_params):
             'clf': LogisticRegression(fit_intercept=True, solver='lbfgs',
                                       penalty='l2'),
             'parameters': {'C': [0.001, 0.1, 1]}}
-        
-
-    # Add experiment for LR using optuna parameters and same data as other 3 classifiers. 
-    print("Add experiment for LR using optuna parameters and same data as other 3 classifiers")
-    if 'LR Optuna' not in exclude:
-        model_path = data_params['model_path']
-        print(model_path)
-
-        with open(model_path, 'rb') as file:
-            hp = pickle.load(file)
-            C = hp['C']
-            print(C)
-
-        classifiers['LR Optuna'] = {
-            'clf': LogisticRegression(fit_intercept=True, solver='lbfgs',
-                                   penalty='l2', C=C, max_iter=150),
-        }
-        print(classifiers['LR Optuna'])
-
-
 
     if 'Naive Bayes' not in exclude:
         classifiers['Naive Bayes'] = {
@@ -192,8 +172,6 @@ def build_classifiers(exclude, scale, feature_selection, nCols, data_params):
         classifiers[key]['clf'] = make_pipeline(*steps)
         # Reorganize paramenter list for grid search
         new_dict = {}
-        if key == 'LR Optuna':
-            continue
         for keyp in classifiers[key]['parameters']:
             new_dict[name(classifiers[key]) + '__' +
                      keyp] = classifiers[key]['parameters'][keyp]
