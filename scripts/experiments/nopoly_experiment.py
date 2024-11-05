@@ -7,8 +7,6 @@ from datetime import datetime, time
 import pandas as pd
 import numpy as np
 
-import scipy.io
-
 from sklearn.metrics import roc_auc_score
 from sklearn.model_selection import StratifiedGroupKFold
 from sklearn.preprocessing import StandardScaler
@@ -50,28 +48,37 @@ def main():
     signal_data = data_params['signal_data']
     n_folds = int(data_params['n_folds'])
     log_level = data_params['log_level']
+    sampler = data_params['sampler']
     
+    print(log_level)
+
+
+    logger = logging.getLogger('my_custom_logger')
+    logger.setLevel(log_level)
+
+    # Create console handler and set level and format
+    console_handler = logging.StreamHandler()
+    console_handler.setLevel(log_level)
+    formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+    console_handler.setFormatter(formatter)
+
+    # Add the handler to the logger
+    logger.addHandler(console_handler)
+
+    # Remove the default handlers if they exist to avoid duplicate logs
+    if logger.hasHandlers():
+        logger.handlers.clear()
+        logger.addHandler(console_handler)
     
 
 
-
-    logging.basicConfig(level=log_level, format='%(asctime)s - %(levelname)s - %(message)s')
-
     
-    logging.info(f'Noise Interval: {SNRs}')
-    logging.info(f'Noise Dataset: {noise_dataset}')
-    logging.info(f'Signal Dataset: {signal_dataset}')
-    logging.info(f'Number of Folds: {n_folds}')
-    logging.info(f'Kernel Type: {kernel_type}')
+    logger.info(f'Noise Interval: {SNRs}')
+    logger.info(f'Noise Dataset: {noise_dataset}')
+    logger.info(f'Signal Dataset: {signal_dataset}')
+    logger.info(f'Number of Folds: {n_folds}')
+    logger.info(f'Kernel Type: {kernel_type}')
 
-
-
-
-    print(f'Noise Interval: {SNRs}')
-    print(f'Noise Dataset: {noise_dataset}')
-    print(f'Signal Dataset: {signal_dataset}')
-    print(f'Number of Folds: {n_folds}')
-    print(f'Kernel Type: {kernel_type}')
 
  
     for SNR in SNRs:
@@ -123,22 +130,32 @@ def main():
 
             classifiers = [
                 ('Logistic Regression' , 'lr'),
-                ('Multilayer Perceptron' , 'mlp'),
+                #('Multilayer Perceptron' , 'mlp'),
                 ('SVM' , 'svm'),
                 ('Naive Bayes' , 'nb')
             ]
 
-            for classifier, clf_shortname in classifiers:
-                # Load model weights and predict on test data
-                weights_dir = f'{project_dir}/assets/model_weights/{signal_dataset}/{kernel_type.lower()}'
-                
-                model_filename = f'{name}_best_model_SNR_{SNR}_{kernel_type.upper()}_{signal_dataset}_{noise_dataset}_optuna_LR-test.pkl'
-                
-                model_path = f'{weights_dir}/{model_filename}'
+            
+            for name, X, y, group in datasets:     
+                for classifier, clf_shortname in classifiers:
 
-                
-                with open(model_path, 'rb') as file:
-                    hp = pickle.load(file)
+
+
+                    # Load model weights and predict on test data
+
+                    logger.info(f'Load model weights for {SNR} - {name} - {clf_shortname}')
+                    weights_dir = f'{project_dir}/assets/model_weights/{signal_dataset}/{kernel_type.lower()}' if clf_shortname == 'svm' \
+                        else f'{project_dir}/assets/model_weights/{signal_dataset}/{clf_shortname.lower()}'
+                    
+                    model_filename = f'{name}_best_model_SNR_{SNR}_{kernel_type.upper()}_{signal_dataset}_{noise_dataset}_optuna.pkl' if clf_shortname == 'svm' \
+                        else f'{name}_best_model_SNR_{SNR}_{clf_shortname.upper()}_{signal_dataset}_{noise_dataset}_optuna_{sampler}.pkl'
+                    
+                    model_path = f'{weights_dir}/{model_filename}'
+
+                    
+                    with open(model_path, 'rb') as file:
+                        hp = pickle.load(file)
+
                     if clf_shortname == 'lr':
                         C = hp['C']
                         model = LogisticRegression(fit_intercept=True, solver='lbfgs', penalty='l2', C=C)
@@ -173,9 +190,9 @@ def main():
                             model = GaussianNB()
                         else:
                             model = MultinomialNB(alpha=hp['alpha'])
-                    
 
-                for name, X, y, group in datasets:
+
+
 
                     if clf_shortname == 'nb':
                         if nb_type != 'gaussian':
@@ -197,10 +214,12 @@ def main():
                         X_train, X_test = X[train_index], X[test_index]
                         y_train, y_test = y[train_index], y[test_index]
                         
-                        logging.info(f'{name.upper()} - SNR {SNR} - noise_ix {noise_ix} - fold {fold_ix}')
-                        logging.info(f'subjects in test {set(group[test_index])}')
+                        logger.info(f'{name.upper()} - SNR {SNR} - noise_ix {noise_ix} - fold {fold_ix}')
+                        logger.info(f'subjects in test {set(group[test_index])}')
 
                         
+                        logger.info(f'X.shape {X.shape}')
+                        logger.info(f'y.shape {y.shape}')
                         model.fit(X_train, y_train)
 
                         y_pred = model.predict(X_test)
@@ -210,7 +229,7 @@ def main():
 
                         #plot_and_save_confusion_matrix(y_test, y_pred, save_data)
                         
-                        logging.info(f' SNR {SNR} - {name} - fold {fold_ix} - noise iteration {noise_ix} fold_auc {fold_score}')
+                        logger.info(f' SNR {SNR} - {name} - fold {fold_ix} - noise iteration {noise_ix} fold_auc {fold_score}')
                         
 
                         results[name].append(
@@ -224,7 +243,7 @@ def main():
                         )
                         
                     avg_roc = np.mean(fold_scores)
-                    logging.info(f'Average ROC AUC for {name}: {avg_roc}')
+                    logger.info(f'Average ROC AUC for {name}: {avg_roc}')
 
 
 
@@ -247,7 +266,7 @@ def main():
                 directory.mkdir(parents=True, exist_ok=True)
 
                 df.to_pickle(f'{pkl_dir}/{month_date}/{filename}')
-                logging.info(f'saved results for {key} at {pkl_dir}/{month_date}/{filename}')
+                logger.info(f'saved results for {key} at {pkl_dir}/{month_date}/{filename}')
 
 if __name__ == "__main__":
     main()

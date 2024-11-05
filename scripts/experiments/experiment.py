@@ -198,7 +198,7 @@ def main():
 
                 report = poly(data=X, label=y, groups=group, n_folds=n_folds, scale=True, concurrency=n_threads, save=False, 
                             exclude=['Decision Tree', 'Random Forest', 'Voting', 'Nearest Neighbors', 
-                                     'Linear SVM', 'SVM'], scoring='auc', 
+                                     'Linear SVM'], scoring='auc', 
                             project_name=name, data_params=data_params)
                 
                 for classifier in report.scores.columns.levels[0]:

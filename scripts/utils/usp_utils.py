@@ -1,5 +1,8 @@
 import logging
 import pickle
+from datetime import *
+from pathlib import Path
+
 
 import numpy as np
 import pandas as pd
@@ -390,8 +393,55 @@ def plot_cv_indices(cv, X, y, group, ax, n_splits, save_data, lw=10):
     fig.savefig(f'cvplot_{name}.png')
 
 
+def get_resultpath(data_params):
+    model_type = data_params['model_type']
+    kernel_type = data_params['kernel_type']
+    signal_dataset = data_params['signal_dataset']
+    project_dir = data_params['project_dir']
+    result_path = f'{project_dir}/assets/model_parameters/{signal_dataset}/{kernel_type}' if model_type == 'svm' \
+                    else f'{project_dir}/assets/model_parameters/{signal_dataset}/{model_type}'
+    return result_path
+
+
+def get_filename(data_params):
+    model_type = data_params['model_type']
+    kernel_type = data_params['kernel_type']
+    signal_dataset = data_params['signal_dataset']
+    noise_dataset = data_params['noise_dataset']
+    sampler = data_params['sampler']
+    SNR = data_params['SNR']
+    sr = data_params['sr']
+    filename = f'{sr}_best_model_SNR_{SNR}_{kernel_type.upper()}_{signal_dataset}_{noise_dataset}_optuna_{sampler}.pkl' if model_type == 'svm' \
+                    else f'{sr}_best_model_SNR_{SNR}_{model_type.upper()}_{signal_dataset}_{noise_dataset}_optuna_{sampler}.pkl'
+    return filename
+
+
+
+def write_results_to_pickle(data, data_params, key):
+    model_type = data_params['model_type']
+    kernel_type = data_params['kernel_type']
+    signal_dataset = data_params['signal_dataset']
+    noise_dataset = data_params['noise_dataset']
+    SNR = data_params['SNR']
+    pkl_dir = data_params['pkl_dir']
+    if data:
+        df = pd.DataFrame(data)
+        current_date = datetime.now().strftime('%Y-%m-%d') + '-' + str(int(time.time()))
+        month_date = '{}-{}'.format(datetime.now().strftime('%m'), datetime.now().strftime('%d'))
+        
+        filename = f'{key}_{SNR}_{noise_dataset}_{signal_dataset}{model_type}_{kernel_type}_{current_date}.pkl'
+        
+        directory = Path(f'{pkl_dir}/{month_date}')
+        directory.mkdir(parents=True, exist_ok=True)
+
+        df.to_pickle(f'{directory}/{filename}')
+        logging.info(f'Saved results for {key} at {directory}/{filename}')
+
+
+
 def set_data_params(args, project_dir):
     data_params = {}
+    data_params['project_dir'] = project_dir
 
 
     lower = 1.5
@@ -440,12 +490,12 @@ def set_data_params(args, project_dir):
     if hasattr(args, 'sampler'):
         sampler = args.sampler if args.sampler != None else 'tpe'
     else:
-        sampler = 'none'
-    
-    if hasattr(args, 'model_type'):
-        model_type = args.model_type
+        sampler = 'tpe'
+
+    if hasattr(args, 'kernel_type'):
+        kernel_type = args.kernel_type if args.kernel_type != None else 'none'
     else:
-        model_type = 'none'
+        kernel_type = 'none'
 
 
     
@@ -508,8 +558,8 @@ def set_data_params(args, project_dir):
     data_params['noise_data'] = noise_data
     data_params['undersampling_rate'] = undersampling_rate
     data_params['NOISE_SIZE'] = NOISE_SIZE
-    data_params['model_type'] = model_type
     data_params["num_noise"] = num_noise
+    data_params["kernel_type"] = kernel_type
 
 
 
