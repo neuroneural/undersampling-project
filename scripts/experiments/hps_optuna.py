@@ -26,7 +26,7 @@ def objective(trial: Trial, X, y, group, model_type, kernel_type, sgkf, SNR, sam
     X = scaler.fit_transform(X)
             
     if model_type == 'svm':
-        y = np.where(y == '0', -1, 1)
+        y = np.where(y == 0, -1, 1)
 
 
     outer_fold_results = []
@@ -118,10 +118,8 @@ def main():
 
     sgkf = StratifiedGroupKFold(n_splits=n_folds, shuffle=True, random_state=42)
 
-    #model_types = ['lr', 'mlp', 'svm', 'nb']
-    model_types = ['svm']
-
-
+    model_types = ['lr', 'mlp', 'svm', 'nb']
+    
     for SNR in SNRs:
         data_params['SNR'] = SNR
 
@@ -144,7 +142,8 @@ def main():
 
             X, y, group = parse_X_y_groups(dataset_df, window_type)
             
-            for model_type in model_types:            
+            for model_type in model_types:
+                data_params['model_type'] = model_type            
 
                 # Run Optuna optimization
                 if sampler == 'tpe':

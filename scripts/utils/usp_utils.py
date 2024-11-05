@@ -333,12 +333,12 @@ def write_results_to_pickle(data, data_params, key):
     noise_dataset = data_params['noise_dataset']
     SNR = data_params['SNR']
     pkl_dir = data_params['pkl_dir']
-    if data:
+    if data != []:
         df = pd.DataFrame(data)
         current_date = datetime.now().strftime('%Y-%m-%d') + '-' + str(int(time.time()))
         month_date = '{}-{}'.format(datetime.now().strftime('%m'), datetime.now().strftime('%d'))
         
-        filename = f'{key}_{SNR}_{noise_dataset}_{signal_dataset}{model_type}_{kernel_type}_{current_date}.pkl'
+        filename = f'{key}_{SNR}_{noise_dataset}_{signal_dataset}{model_type}_{kernel_type}_{current_date}_optuna.pkl'
         
         directory = Path(f'{pkl_dir}/{month_date}')
         directory.mkdir(parents=True, exist_ok=True)
@@ -517,6 +517,8 @@ def set_hps_params(model_type, kernel_type, trial):
             if hps_params['nb_type'] == "multinomial":
                 hps_params['alpha'] = trial.suggest_float("alpha", 1e-3, 10, log=True)
     
+    hps_params['kernel_type'] = kernel_type
+
     return hps_params
 
 def set_scaler(model_type, hps_params):
