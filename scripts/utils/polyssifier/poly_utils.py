@@ -84,7 +84,7 @@ class MyRegressionMedianer(object):
         return avg
 
 
-def build_classifiers(exclude, scale, feature_selection, nCols, data_params):
+def build_classifiers(exclude, scale, feature_selection, nCols):
     '''
     Input:
     - exclude: list of names of classifiers to exclude from the analysis

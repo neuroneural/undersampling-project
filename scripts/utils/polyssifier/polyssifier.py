@@ -24,7 +24,7 @@ logger = logging.getLogger(__name__)
 
 def poly(data, label, groups=None, n_folds=10, scale=True, exclude=[],
          feature_selection=False, save=False, scoring='auc',
-         project_name='', concurrency=1, verbose=True, random_state=1988, data_params=None):
+         project_name='', concurrency=1, verbose=True, random_state=1988):
     '''
     Input
     data         = numpy matrix with as many rows as samples
@@ -63,7 +63,7 @@ def poly(data, label, groups=None, n_folds=10, scale=True, exclude=[],
     logger.info('Building classifiers ...')
     classifiers = build_classifiers(exclude, scale,
                                     feature_selection,
-                                    data.shape[1], data_params)
+                                    data.shape[1])
 
     scores = pd.DataFrame(columns=pd.MultiIndex.from_product(
         [classifiers.keys(), ['train', 'test']]),
