@@ -1,3 +1,4 @@
+from datetime import *
 import logging
 import pickle
 from datetime import *
@@ -11,20 +12,12 @@ import matplotlib.pyplot as plt
 
 from scipy.stats import zscore
 from scipy.signal import detrend
-import scipy.sparse as sp
-from scipy.sparse.linalg import eigs
 
-from sklearn.model_selection import GridSearchCV, StratifiedGroupKFold
-from sklearn.metrics import make_scorer, roc_auc_score, confusion_matrix, ConfusionMatrixDisplay
-from sklearn.svm import SVC
 from sklearn.preprocessing import LabelEncoder
-from sklearn.decomposition import PCA
 
 
 
 def scale_noise(n, x, SNR):
-    #assert x.shape[0] == 53, 'timecourse dimension 0 should be 53'
-    #assert n.shape[0] == 53, 'noise dimension 0 should be 53'
     xTx = np.sum(np.square(x))
     nTn = np.sum(np.square(n))
     if nTn == 0:
@@ -47,30 +40,6 @@ def create_colored_noise(corr_mat, L, noise_size):
     return colored_noise
 
 
-def create_var_noise(A, subjects, threshold, u_rate, burn, NOISE_SIZE, nstd):
-    num_converged = 0
-    converged_subjects = []
-    noises = {}
-    NUM_SUBS = len(subjects)
-    while num_converged < NUM_SUBS:
-        for subject in subjects:
-            if subject in converged_subjects:
-                continue
-
-            try:
-                W = create_stable_weighted_matrix(A, threshold=threshold, powers=[2])
-                var_noise = genData(W, rate=u_rate, burnin=burn, ssize=NOISE_SIZE, nstd=nstd)
-                var_noise = zscore(var_noise, axis=1)
-                noises[subject] = var_noise 
-                num_converged += 1
-                converged_subjects.append(subject)
-                logging.info(f'num converged: {num_converged}/{NUM_SUBS}')
-
-            except Exception as e:
-                print(e)
-    return noises
-
-
 def preprocess_timecourse(tc_data):
     #assert tc_data.shape[0] == 53, 'timecourse dimension 0 should be 53'
     data = detrend(tc_data, axis=1)   
@@ -88,70 +57,6 @@ def parse_X_y_groups(data_df, name):
     X = data_df[f'{name}_Window']
     X = np.array([np.array(entry) for entry in X])
     return X, y, group
-
-
-def check_matrix_powers(W, A, powers, threshold):
-    for n in powers:
-        W_n = np.linalg.matrix_power(W, n)
-        non_zero_indices = np.nonzero(W_n)
-        if (np.abs(W_n[non_zero_indices]) < threshold).any():
-            return False
-    return True
-
-
-def create_stable_weighted_matrix(
-    A,
-    threshold=0.1,
-    powers=[1, 2, 3, 4],
-    max_attempts=1000,
-    damping_factor=0.99,
-    random_state=None,
-):
-    np.random.seed(
-        random_state
-    )  # Set random seed for reproducibility if provided
-    attempts = 0
-
-    while attempts < max_attempts:
-        # Generate a random matrix with the same sparsity pattern as A
-        random_weights = np.random.randn(*A.shape)
-        weighted_matrix = A * random_weights
-
-        # Convert to sparse format for efficient eigenvalue computation
-        weighted_sparse = sp.csr_matrix(weighted_matrix)
-
-        # Compute the largest eigenvalue in magnitude
-        eigenvalues, _ = eigs(weighted_sparse, k=1, which="LM")
-        max_eigenvalue = np.abs(eigenvalues[0])
-
-        # Scale the matrix so that the spectral radius is slightly less than 1
-        if max_eigenvalue > 0:
-            weighted_matrix *= damping_factor / max_eigenvalue
-            # Check if the powers of the matrix preserve the threshold for non-zero entries of A
-            if check_matrix_powers(weighted_matrix, A, powers, threshold):
-                return weighted_matrix
-
-        attempts += 1
-
-    raise ValueError(
-        f"Unable to create a matrix satisfying the condition after {max_attempts} attempts."
-    )
-
-
-def drawsamplesLG(A, nstd, samples):
-    n = A.shape[0]
-    data = np.zeros([n, samples])
-    data[:, 0] = nstd * np.random.randn(A.shape[0])
-    for i in range(1, samples):
-        data[:, i] = A @ data[:, i - 1] + nstd * np.random.randn(A.shape[0])
-    return data
-
-
-def genData(A, rate=2, burnin=100, ssize=5000, nstd=0.1):
-    Agt = A.copy()
-    data = drawsamplesLG(Agt, samples=burnin + (ssize * rate), nstd=nstd)
-    data = data[:, burnin:]
-    return data[:, ::rate]
 
 
 def perform_windowing(data_df):
@@ -231,20 +136,18 @@ def perform_windowing(data_df):
     return sr1_data, sr2_data, add_data, concat_data
 
 
-
 def load_timecourses(signal_data, data_params):
     signal_dataset = data_params['signal_dataset']
     noise_dataset = data_params['noise_dataset']
-    
-    if noise_dataset == 'VAR':
-        A = data_params['A']
-        nstd = data_params['nstd']
-        threshold = data_params['threshold']
-        u_rate = data_params['u_rate']
-        burn = data_params['burn']
+    cov_mat = data_params['cov_mat']
+
+    if cov_mat:
+        covariance_matrix = data_params['covariance_matrix']
     else:
         correlation_matrix = data_params['correlation_matrix']
-        L = data_params['L']
+    
+    
+    L = data_params['L']
 
 
     subjects = data_params['subjects']
@@ -255,12 +158,13 @@ def load_timecourses(signal_data, data_params):
     
 
 
-    noises = {} if noise_dataset != 'VAR' else create_var_noise(A, subjects, threshold, u_rate, burn, NOISE_SIZE, nstd)
+    noises = {}
     ################ loading and preprocessing
     all_data = []
     for subject in subjects:
-        if noise_dataset != 'VAR':
-            noises[subject] = create_colored_noise(correlation_matrix, L, NOISE_SIZE)
+        if (noise_dataset == 'FBIRN') or (noise_dataset == 'COBRE'):
+            noises[subject] = create_colored_noise(covariance_matrix, L, NOISE_SIZE) if cov_mat \
+                  else create_colored_noise(correlation_matrix, L, NOISE_SIZE)
             logging.debug(f'computed noise for subject: {subject}')
 
             if signal_dataset == 'SIMULATION': 
@@ -468,13 +372,13 @@ def set_data_params(args, project_dir):
     
     
     log_level = 'DEBUG' if args.verbose else 'INFO'
+
+    logging.basicConfig(level=log_level, format='%(asctime)s - %(levelname)s - %(message)s')
+
     
     signal_dataset = args.signal_dataset.upper()    
     noise_dataset = args.noise_dataset.upper()
 
-
-    signal_data = pd.read_pickle(f'{project_dir}/assets/data/{signal_dataset}_data.pkl')
-    noise_data = scipy.io.loadmat(f'{project_dir}/assets/data/{noise_dataset}_data.mat')
 
 
     if hasattr(args, 'n_folds'):
@@ -497,38 +401,38 @@ def set_data_params(args, project_dir):
     else:
         kernel_type = 'none'
 
-
-    
-    
-    if noise_dataset == "VAR":
-        A = noise_data['A']
-        u_rate = 1
-        nstd = 1.0
-        burn = 100
-        threshold = 0.0001
-        
-        logging.debug(f'A - {A}')
-        logging.debug(f'u_rate - {u_rate}')
-        logging.debug(f'nstd - {nstd}')
-        logging.debug(f'burn - {burn}')
-        logging.debug(f'threshold - {threshold}')
-
-
-        data_params['A'] = A
-        data_params['u_rate'] = u_rate
-        data_params['nstd'] = nstd
-        data_params['burn'] = burn
-        data_params['threshold'] = threshold
-
+    if hasattr(args, 'cov_mat'):
+        cov_mat = args.cov_mat
     else:
-        L = noise_data['L']
-        correlation_matrix = noise_data['corr_mat']
+        cov_mat = False
 
-        logging.debug(f'L {L}')
+
+    signal_data = pd.read_pickle(f'{project_dir}/assets/data/{signal_dataset}_data.pkl')
+    noise_data = scipy.io.loadmat(f'{project_dir}/assets/data/cov/{noise_dataset}_data.mat') if cov_mat \
+        else scipy.io.loadmat(f'{project_dir}/assets/data/{noise_dataset}_data.mat')
+
+
+    
+
+    
+    
+
+    L = noise_data['L']
+    correlation_matrix = noise_data['corr_mat']
+
+    if cov_mat:
+        covariance_matrix = noise_data['cov_mat']    
+        logging.debug(f'covariance_matrix {covariance_matrix}')
+        data_params['covariance_matrix'] = covariance_matrix
+    else:
+        correlation_matrix = noise_data['corr_mat']    
         logging.debug(f'correlation_matrix {correlation_matrix}')
-
-        data_params['L'] = L
         data_params['correlation_matrix'] = correlation_matrix
+
+    logging.debug(f'L {L}')
+    logging.debug(f'correlation_matrix {correlation_matrix}')
+
+    data_params['L'] = L
 
 
     if signal_dataset == 'OULU':
@@ -560,7 +464,7 @@ def set_data_params(args, project_dir):
     data_params['NOISE_SIZE'] = NOISE_SIZE
     data_params["num_noise"] = num_noise
     data_params["kernel_type"] = kernel_type
-
+    data_params['cov_mat'] = cov_mat
 
 
     return data_params

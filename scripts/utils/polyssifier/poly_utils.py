@@ -115,10 +115,12 @@ def build_classifiers(exclude, scale, feature_selection, nCols, data_params):
 
     if 'SVM' not in exclude:
         classifiers['SVM'] = {
-            'clf': SVC(C=1, probability=True, cache_size=10000,
+            'clf': SVC(probability=True, cache_size=10000,
                        class_weight='balanced'),
-            'parameters': {'kernel': ['rbf', 'poly'],
-                           'C': [0.01, 0.1, 1]}}
+            'parameters': {'kernel': ['rbf'],#, 'poly'],
+                           'C': [50, 100, 1000]}, 
+                           'tol': [1e-6, 1e-2, 2], 
+                           'gamma': [1e-5, 1e-2, 1]}
 
     if 'Linear SVM' not in exclude:
         classifiers['Linear SVM'] = {
