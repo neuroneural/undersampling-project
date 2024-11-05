@@ -1,6 +1,7 @@
 import logging
 import argparse
 from datetime import datetime
+from pathlib import Path
 
 import pandas as pd
 import numpy as np
@@ -26,7 +27,7 @@ def main():
     parser.add_argument('-f', '--n-folds', type=int, help='number of folds for cross-validation', required=False)
     parser.add_argument('-nn', '--num_noise', type=int, help='number of noise iterations', required=False)
     parser.add_argument('-v', '--verbose', action='store_true', help='turn on debug logging', required=False)
-    parser.add_argument('-cv', '--cov-mat', action='store_true', help='use covariance matrix', required=False)
+    parser.add_argument('-cv', '--cov-mat', action='store_true', help='use covariance matrix, default uses correlation matrix', required=False)
     
     args = parser.parse_args()
     data_params = set_data_params(args, project_dir)
@@ -136,10 +137,18 @@ def main():
         for key, data in results.items():
             if data != []:
                 df = pd.DataFrame(data)
-                current_date = datetime.now().strftime('%Y-%m-%d')
+                
+                current_date = datetime.now().strftime('%Y-%m-%d') + '-' + str(int(time.time()))
+                month_date = '{}-{}'.format(datetime.now().strftime('%m'), datetime.now().strftime('%d'))
+        
+
                 filename = f'{key}_{SNR}_{noise_dataset}_{signal_dataset}_{current_date}.pkl'
-                df.to_pickle(f'{pkl_dir}/{filename}')
-                logging.info(f'saved results for {key} at {pkl_dir}/{filename}')
+                
+                directory = Path(f'{pkl_dir}/{month_date}')
+                directory.mkdir(parents=True, exist_ok=True)
+
+                df.to_pickle(f'{directory}/{filename}')
+                logging.info(f'Saved results for {key} at {directory}/{filename}')
 
 if __name__ == "__main__":
     main()
