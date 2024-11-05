@@ -380,7 +380,6 @@ def set_data_params(args, project_dir):
     #logging.debug(f'correlation_matrix {correlation_matrix}')
 
     data_params['L'] = L
-    data_params['correlation_matrix'] = correlation_matrix
 
 
     if signal_dataset == 'OULU':
