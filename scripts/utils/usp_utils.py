@@ -1,7 +1,12 @@
 import logging
 import pickle
+from datetime import *
+from pathlib import Path
+
 
 import numpy as np
+import pandas as pd
+import scipy
 import matplotlib.pyplot as plt
 
 from scipy.stats import zscore
@@ -29,11 +34,11 @@ def scale_noise(n, x, SNR):
     return scaled_noise
 
 
-def create_colored_noise(cov_mat, L, noise_size):
-    assert cov_mat.shape == (53, 53), 'cov_mat should be 53 x 53 matrix'
+def create_colored_noise(corr_mat, L, noise_size):
+    assert corr_mat.shape == (53, 53), 'cov_mat should be 53 x 53 matrix'
     assert L.shape == (53, 53), 'L should be 53 x 53 matrix'
-    mean = np.zeros(cov_mat.shape[0])
-    white_noise = np.random.multivariate_normal(mean, np.eye(cov_mat.shape[0]), size=noise_size)
+    mean = np.zeros(corr_mat.shape[0])
+    white_noise = np.random.multivariate_normal(mean, np.eye(corr_mat.shape[0]), size=noise_size)
     colored_noise = white_noise @ L.T
     colored_noise = colored_noise.T
     #colored_noise = zscore(colored_noise, axis=1)
@@ -78,6 +83,8 @@ def parse_X_y_groups(data_df, name):
     group = le.fit_transform(data_df['subject'])
     y = data_df['target']
     y = np.array([str(entry) for entry in y])
+    le_y = LabelEncoder()
+    y = le_y.fit_transform(y)
     X = data_df[f'{name}_Window']
     X = np.array([np.array(entry) for entry in X])
     return X, y, group
@@ -229,12 +236,6 @@ def load_timecourses(signal_data, data_params):
     signal_dataset = data_params['signal_dataset']
     noise_dataset = data_params['noise_dataset']
     
-    cov_mat = True
-
-    if 'correlation_matrix' in data_params:
-        cov_mat = False
-        logging.debug(f'Use Correlation Matrix {not cov_mat}')
-
     if noise_dataset == 'VAR':
         A = data_params['A']
         nstd = data_params['nstd']
@@ -242,11 +243,7 @@ def load_timecourses(signal_data, data_params):
         u_rate = data_params['u_rate']
         burn = data_params['burn']
     else:
-        if cov_mat:
-            covariance_matrix = data_params['covariance_matrix']
-        else:
-            correlation_matrix = data_params['correlation_matrix']
-
+        correlation_matrix = data_params['correlation_matrix']
         L = data_params['L']
 
 
@@ -255,6 +252,7 @@ def load_timecourses(signal_data, data_params):
     undersampling_rate = data_params['undersampling_rate']
     SNR = data_params['SNR']
     
+    
 
 
     noises = {} if noise_dataset != 'VAR' else create_var_noise(A, subjects, threshold, u_rate, burn, NOISE_SIZE, nstd)
@@ -262,9 +260,7 @@ def load_timecourses(signal_data, data_params):
     all_data = []
     for subject in subjects:
         if noise_dataset != 'VAR':
-            noises[subject] = create_colored_noise(covariance_matrix, L, NOISE_SIZE) if cov_mat \
-                else create_colored_noise(correlation_matrix, L, NOISE_SIZE)
-            
+            noises[subject] = create_colored_noise(correlation_matrix, L, NOISE_SIZE)
             logging.debug(f'computed noise for subject: {subject}')
 
             if signal_dataset == 'SIMULATION': 
@@ -335,3 +331,236 @@ def load_timecourses(signal_data, data_params):
     ################ end loop over subjects
     
     return all_data
+
+
+def plot_cv_indices(cv, X, y, group, ax, n_splits, save_data, lw=10):
+    """Create a sample plot for indices of a cross-validation object."""
+    group = np.array(group, dtype=int)
+    y = np.array(y, dtype=int)
+    print(set(group))
+    cmap_cv = plt.cm.coolwarm
+    cmap_data = plt.cm.Paired
+
+    # Generate the training/testing visualizations for each CV split
+    for ii, (tr, tt) in enumerate(cv.split(X=X, y=y, groups=group)):
+        # Fill in indices with the training/test groups
+        indices = np.array([np.nan] * len(X))
+        indices[tt] = 1
+        indices[tr] = 0
+
+        # Visualize the results
+        ax.scatter(
+            range(len(indices)),
+            [ii + 0.5] * len(indices),
+            c=indices,
+            marker="_",
+            lw=lw,
+            cmap=cmap_cv,
+            vmin=-0.2,
+            vmax=1.2,
+        )
+
+    # Plot the data classes and groups at the end
+    ax.scatter(
+        range(len(X)), [ii + 1.5] * len(X), c=y, marker="_", lw=lw, cmap=cmap_data
+    )
+
+    ax.scatter(
+        range(len(X)), [ii + 2.5] * len(X), c=group, marker="_", lw=lw, cmap=cmap_data
+    )
+
+    # Formatting
+    yticklabels = list(range(n_splits)) + ["class", "group"]
+    ax.set(
+        yticks=np.arange(n_splits + 2) + 0.5,
+        yticklabels=yticklabels,
+        xlabel="Sample index",
+        ylabel="CV iteration",
+        ylim=[n_splits + 2.2, -0.2],
+        xlim=[0, 1600],
+    )
+    fig = ax.get_figure()
+    sampling_rate = save_data['sampling_rate']
+    snr = save_data['snr']
+    noise_dataset = save_data['noise_dataset']
+    signal_dataset = save_data['signal_dataset']
+
+    name = f'{sampling_rate}_{snr}_{noise_dataset}_{signal_dataset}'
+
+    ax.set_title("{}_{}".format(type(cv).__name__, name), fontsize=15)
+
+
+    fig.savefig(f'cvplot_{name}.png')
+
+
+def get_resultpath(data_params):
+    model_type = data_params['model_type']
+    kernel_type = data_params['kernel_type']
+    signal_dataset = data_params['signal_dataset']
+    project_dir = data_params['project_dir']
+    result_path = f'{project_dir}/assets/model_parameters/{signal_dataset}/{kernel_type}' if model_type == 'svm' \
+                    else f'{project_dir}/assets/model_parameters/{signal_dataset}/{model_type}'
+    return result_path
+
+
+def get_filename(data_params):
+    model_type = data_params['model_type']
+    kernel_type = data_params['kernel_type']
+    signal_dataset = data_params['signal_dataset']
+    noise_dataset = data_params['noise_dataset']
+    sampler = data_params['sampler']
+    SNR = data_params['SNR']
+    sr = data_params['sr']
+    filename = f'{sr}_best_model_SNR_{SNR}_{kernel_type.upper()}_{signal_dataset}_{noise_dataset}_optuna_{sampler}.pkl' if model_type == 'svm' \
+                    else f'{sr}_best_model_SNR_{SNR}_{model_type.upper()}_{signal_dataset}_{noise_dataset}_optuna_{sampler}.pkl'
+    return filename
+
+
+
+def write_results_to_pickle(data, data_params, key):
+    model_type = data_params['model_type']
+    kernel_type = data_params['kernel_type']
+    signal_dataset = data_params['signal_dataset']
+    noise_dataset = data_params['noise_dataset']
+    SNR = data_params['SNR']
+    pkl_dir = data_params['pkl_dir']
+    if data:
+        df = pd.DataFrame(data)
+        current_date = datetime.now().strftime('%Y-%m-%d') + '-' + str(int(time.time()))
+        month_date = '{}-{}'.format(datetime.now().strftime('%m'), datetime.now().strftime('%d'))
+        
+        filename = f'{key}_{SNR}_{noise_dataset}_{signal_dataset}{model_type}_{kernel_type}_{current_date}.pkl'
+        
+        directory = Path(f'{pkl_dir}/{month_date}')
+        directory.mkdir(parents=True, exist_ok=True)
+
+        df.to_pickle(f'{directory}/{filename}')
+        logging.info(f'Saved results for {key} at {directory}/{filename}')
+
+
+
+def set_data_params(args, project_dir):
+    data_params = {}
+    data_params['project_dir'] = project_dir
+
+
+    lower = 1.5
+    upper = 2.5
+    step = 0.1
+
+    SNRs = np.round(np.arange(lower, upper+step, step), 1)
+
+    if args.snr_int != None:
+        if len(args.snr_int) == 2:
+            lower = args.snr_int[0]
+            upper = args.snr_int[1]
+
+        if len(args.snr_int) == 3:
+            lower = args.snr_int[0]
+            upper = args.snr_int[1]
+            step = args.snr_int[2]
+
+        SNRs = np.round(np.arange(lower, upper+step, step), 1)
+
+        if len(args.snr_int) == 1:
+            SNRs = [args.snr_int[0]]
+    
+    
+    
+    log_level = 'DEBUG' if args.verbose else 'INFO'
+    
+    signal_dataset = args.signal_dataset.upper()    
+    noise_dataset = args.noise_dataset.upper()
+
+
+    signal_data = pd.read_pickle(f'{project_dir}/assets/data/{signal_dataset}_data.pkl')
+    noise_data = scipy.io.loadmat(f'{project_dir}/assets/data/{noise_dataset}_data.mat')
+
+
+    if hasattr(args, 'n_folds'):
+        n_folds = args.n_folds if args.n_folds != None else 7
+    else:
+        n_folds = 7
+
+    if hasattr(args, 'num_noise'):
+        num_noise = args.num_noise if args.num_noise != None else 1
+    else:
+        num_noise = 1
+    
+    if hasattr(args, 'sampler'):
+        sampler = args.sampler if args.sampler != None else 'tpe'
+    else:
+        sampler = 'tpe'
+
+    if hasattr(args, 'kernel_type'):
+        kernel_type = args.kernel_type if args.kernel_type != None else 'none'
+    else:
+        kernel_type = 'none'
+
+
+    
+    
+    if noise_dataset == "VAR":
+        A = noise_data['A']
+        u_rate = 1
+        nstd = 1.0
+        burn = 100
+        threshold = 0.0001
+        
+        logging.debug(f'A - {A}')
+        logging.debug(f'u_rate - {u_rate}')
+        logging.debug(f'nstd - {nstd}')
+        logging.debug(f'burn - {burn}')
+        logging.debug(f'threshold - {threshold}')
+
+
+        data_params['A'] = A
+        data_params['u_rate'] = u_rate
+        data_params['nstd'] = nstd
+        data_params['burn'] = burn
+        data_params['threshold'] = threshold
+
+    else:
+        L = noise_data['L']
+        correlation_matrix = noise_data['corr_mat']
+
+        logging.debug(f'L {L}')
+        logging.debug(f'correlation_matrix {correlation_matrix}')
+
+        data_params['L'] = L
+        data_params['correlation_matrix'] = correlation_matrix
+
+
+    if signal_dataset == 'OULU':
+        undersampling_rate = 1
+        NOISE_SIZE = 2961*2
+    
+    if signal_dataset == 'SIMULATION':
+        undersampling_rate = 1
+        NOISE_SIZE = 18018 #might should write a function to compute this, it is LCM(t1*k1, t2*k2)
+
+    if signal_dataset == 'HCP':
+        NOISE_SIZE = 1200
+        undersampling_rate = 6
+
+    subjects = np.unique(signal_data['subject'])
+    
+    data_params['subjects'] = subjects
+    data_params['noise_dataset'] = noise_dataset
+    data_params['signal_dataset'] = signal_dataset
+    data_params['SNRs'] = SNRs
+    data_params['n_folds'] = n_folds
+    data_params['log_level'] = log_level
+    data_params['signal_dataset'] = signal_dataset
+    data_params['noise_dataset'] = noise_dataset
+    data_params['sampler'] = sampler
+    data_params['signal_data'] = signal_data
+    data_params['noise_data'] = noise_data
+    data_params['undersampling_rate'] = undersampling_rate
+    data_params['NOISE_SIZE'] = NOISE_SIZE
+    data_params["num_noise"] = num_noise
+    data_params["kernel_type"] = kernel_type
+
+
+
+    return data_params
