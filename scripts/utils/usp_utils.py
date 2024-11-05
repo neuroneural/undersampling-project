@@ -1,7 +1,4 @@
-import pickle
 from datetime import *
-from pathlib import Path
-
 
 import numpy as np
 import pandas as pd
@@ -10,14 +7,8 @@ import matplotlib.pyplot as plt
 
 from scipy.stats import zscore
 from scipy.signal import detrend
-import scipy.sparse as sp
-from scipy.sparse.linalg import eigs
 
-from sklearn.model_selection import GridSearchCV, StratifiedGroupKFold
-from sklearn.metrics import make_scorer, roc_auc_score, confusion_matrix, ConfusionMatrixDisplay
-from sklearn.svm import SVC
 from sklearn.preprocessing import LabelEncoder
-from sklearn.decomposition import PCA
 
 
 
@@ -143,9 +134,14 @@ def perform_windowing(data_df):
 def load_timecourses(signal_data, data_params):
     signal_dataset = data_params['signal_dataset']
     noise_dataset = data_params['noise_dataset']
-    
+    cov_mat = data_params['cov_mat']
 
-    correlation_matrix = data_params['correlation_matrix']
+    if cov_mat:
+        covariance_matrix = data_params['covariance_matrix']
+    else:
+        correlation_matrix = data_params['correlation_matrix']
+    
+    
     L = data_params['L']
 
 
@@ -162,7 +158,8 @@ def load_timecourses(signal_data, data_params):
     all_data = []
     for subject in subjects:
         if (noise_dataset == 'FBIRN') or (noise_dataset == 'COBRE'):
-            noises[subject] = create_colored_noise(correlation_matrix, L, NOISE_SIZE)
+            noises[subject] = create_colored_noise(covariance_matrix, L, NOISE_SIZE) if cov_mat \
+                  else create_colored_noise(correlation_matrix, L, NOISE_SIZE)
             #logging.debug(f'computed noise for subject: {subject}')
 
             if signal_dataset == 'SIMULATION': 
