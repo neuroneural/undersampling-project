@@ -47,30 +47,6 @@ def create_colored_noise(corr_mat, L, noise_size):
     return colored_noise
 
 
-def create_var_noise(A, subjects, threshold, u_rate, burn, NOISE_SIZE, nstd):
-    num_converged = 0
-    converged_subjects = []
-    noises = {}
-    NUM_SUBS = len(subjects)
-    while num_converged < NUM_SUBS:
-        for subject in subjects:
-            if subject in converged_subjects:
-                continue
-
-            try:
-                W = create_stable_weighted_matrix(A, threshold=threshold, powers=[2])
-                var_noise = genData(W, rate=u_rate, burnin=burn, ssize=NOISE_SIZE, nstd=nstd)
-                var_noise = zscore(var_noise, axis=1)
-                noises[subject] = var_noise 
-                num_converged += 1
-                converged_subjects.append(subject)
-                logging.info(f'num converged: {num_converged}/{NUM_SUBS}')
-
-            except Exception as e:
-                print(e)
-    return noises
-
-
 def preprocess_timecourse(tc_data):
     #assert tc_data.shape[0] == 53, 'timecourse dimension 0 should be 53'
     data = detrend(tc_data, axis=1)   
@@ -88,70 +64,6 @@ def parse_X_y_groups(data_df, name):
     X = data_df[f'{name}_Window']
     X = np.array([np.array(entry) for entry in X])
     return X, y, group
-
-
-def check_matrix_powers(W, A, powers, threshold):
-    for n in powers:
-        W_n = np.linalg.matrix_power(W, n)
-        non_zero_indices = np.nonzero(W_n)
-        if (np.abs(W_n[non_zero_indices]) < threshold).any():
-            return False
-    return True
-
-
-def create_stable_weighted_matrix(
-    A,
-    threshold=0.1,
-    powers=[1, 2, 3, 4],
-    max_attempts=1000,
-    damping_factor=0.99,
-    random_state=None,
-):
-    np.random.seed(
-        random_state
-    )  # Set random seed for reproducibility if provided
-    attempts = 0
-
-    while attempts < max_attempts:
-        # Generate a random matrix with the same sparsity pattern as A
-        random_weights = np.random.randn(*A.shape)
-        weighted_matrix = A * random_weights
-
-        # Convert to sparse format for efficient eigenvalue computation
-        weighted_sparse = sp.csr_matrix(weighted_matrix)
-
-        # Compute the largest eigenvalue in magnitude
-        eigenvalues, _ = eigs(weighted_sparse, k=1, which="LM")
-        max_eigenvalue = np.abs(eigenvalues[0])
-
-        # Scale the matrix so that the spectral radius is slightly less than 1
-        if max_eigenvalue > 0:
-            weighted_matrix *= damping_factor / max_eigenvalue
-            # Check if the powers of the matrix preserve the threshold for non-zero entries of A
-            if check_matrix_powers(weighted_matrix, A, powers, threshold):
-                return weighted_matrix
-
-        attempts += 1
-
-    raise ValueError(
-        f"Unable to create a matrix satisfying the condition after {max_attempts} attempts."
-    )
-
-
-def drawsamplesLG(A, nstd, samples):
-    n = A.shape[0]
-    data = np.zeros([n, samples])
-    data[:, 0] = nstd * np.random.randn(A.shape[0])
-    for i in range(1, samples):
-        data[:, i] = A @ data[:, i - 1] + nstd * np.random.randn(A.shape[0])
-    return data
-
-
-def genData(A, rate=2, burnin=100, ssize=5000, nstd=0.1):
-    Agt = A.copy()
-    data = drawsamplesLG(Agt, samples=burnin + (ssize * rate), nstd=nstd)
-    data = data[:, burnin:]
-    return data[:, ::rate]
 
 
 def perform_windowing(data_df):
@@ -229,7 +141,6 @@ def perform_windowing(data_df):
     ################ end loop over subjects
     
     return sr1_data, sr2_data, add_data, concat_data
-
 
 
 def load_timecourses(signal_data, data_params):
@@ -391,51 +302,6 @@ def plot_cv_indices(cv, X, y, group, ax, n_splits, save_data, lw=10):
 
 
     fig.savefig(f'cvplot_{name}.png')
-
-
-def get_resultpath(data_params):
-    model_type = data_params['model_type']
-    kernel_type = data_params['kernel_type']
-    signal_dataset = data_params['signal_dataset']
-    project_dir = data_params['project_dir']
-    result_path = f'{project_dir}/assets/model_parameters/{signal_dataset}/{kernel_type}' if model_type == 'svm' \
-                    else f'{project_dir}/assets/model_parameters/{signal_dataset}/{model_type}'
-    return result_path
-
-
-def get_filename(data_params):
-    model_type = data_params['model_type']
-    kernel_type = data_params['kernel_type']
-    signal_dataset = data_params['signal_dataset']
-    noise_dataset = data_params['noise_dataset']
-    sampler = data_params['sampler']
-    SNR = data_params['SNR']
-    sr = data_params['sr']
-    filename = f'{sr}_best_model_SNR_{SNR}_{kernel_type.upper()}_{signal_dataset}_{noise_dataset}_optuna_{sampler}.pkl' if model_type == 'svm' \
-                    else f'{sr}_best_model_SNR_{SNR}_{model_type.upper()}_{signal_dataset}_{noise_dataset}_optuna_{sampler}.pkl'
-    return filename
-
-
-
-def write_results_to_pickle(data, data_params, key):
-    model_type = data_params['model_type']
-    kernel_type = data_params['kernel_type']
-    signal_dataset = data_params['signal_dataset']
-    noise_dataset = data_params['noise_dataset']
-    SNR = data_params['SNR']
-    pkl_dir = data_params['pkl_dir']
-    if data:
-        df = pd.DataFrame(data)
-        current_date = datetime.now().strftime('%Y-%m-%d') + '-' + str(int(time.time()))
-        month_date = '{}-{}'.format(datetime.now().strftime('%m'), datetime.now().strftime('%d'))
-        
-        filename = f'{key}_{SNR}_{noise_dataset}_{signal_dataset}{model_type}_{kernel_type}_{current_date}.pkl'
-        
-        directory = Path(f'{pkl_dir}/{month_date}')
-        directory.mkdir(parents=True, exist_ok=True)
-
-        df.to_pickle(f'{directory}/{filename}')
-        logging.info(f'Saved results for {key} at {directory}/{filename}')
 
 
 
