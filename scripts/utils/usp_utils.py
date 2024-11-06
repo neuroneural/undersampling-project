@@ -418,7 +418,7 @@ def set_data_params(args, project_dir):
 
     signal_data = pd.read_pickle(f'{project_dir}/assets/data/{signal_dataset}_data.pkl')
     noise_data = scipy.io.loadmat(f'{project_dir}/assets/data/cov/{noise_dataset}_data.mat') if cov_mat \
-        else scipy.io.loadmat(f'{project_dir}/assets/data/{noise_dataset}_data.mat')
+        else scipy.io.loadmat(f'{project_dir}/assets/data/corr/{noise_dataset}_data.mat')
 
 
     
