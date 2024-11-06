@@ -54,6 +54,7 @@ def objective(trial: Trial, X, y, group, model_type, kernel_type, sgkf, SNR, sam
         outer_auc = roc_auc_score(y_outer_test, y_pred)
 
         results_dict[sampling_rate].append({
+            'trial': trial.number,
             'snr': SNR,
             'fold': outer_fold_number,
             'roc': outer_auc,
