@@ -3,7 +3,8 @@ import logging
 import pickle
 from datetime import *
 from pathlib import Path
-
+import time
+import os
 
 import numpy as np
 import pandas as pd
@@ -15,11 +16,14 @@ from scipy.signal import detrend
 
 from sklearn.preprocessing import StandardScaler, MinMaxScaler, LabelEncoder
 
-from thundersvm import SVC
+
 from sklearn.linear_model import LogisticRegression
 from sklearn.neural_network import MLPClassifier
 from sklearn.naive_bayes import GaussianNB, MultinomialNB
 
+
+if os.getenv('THUNDERSVM_ACTIVE') == 'true':
+    from thundersvm import SVC
 
 
 def scale_noise(n, x, SNR):
