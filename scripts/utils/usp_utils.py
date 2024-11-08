@@ -43,9 +43,6 @@ def create_colored_noise(corr_mat, L, noise_size):
     white_noise = np.random.multivariate_normal(mean, np.eye(corr_mat.shape[0]), size=noise_size)
     colored_noise = white_noise @ L.T
     colored_noise = colored_noise.T
-    #colored_noise = zscore(colored_noise, axis=1)
-    #colored_noise = detrend(colored_noise, axis=1)
-    #the noise should have mean zero and covariance should not be the identity right ???
     return colored_noise
 
 
@@ -390,6 +387,12 @@ def set_data_params(args, project_dir):
 
 
 
+
+    if hasattr(args, 'subject_id'):
+        subject_id = args.subject_id if args.subject_id != None else '000300655084'
+    else:
+        subject_id = '000300655084' if noise_dataset.lower() == 'fbirn' else '0'
+
     if hasattr(args, 'n_folds'):
         n_folds = args.n_folds if args.n_folds != None else 7
     else:
@@ -417,26 +420,20 @@ def set_data_params(args, project_dir):
 
 
     signal_data = pd.read_pickle(f'{project_dir}/assets/data/{signal_dataset}_data.pkl')
-    noise_data = scipy.io.loadmat(f'{project_dir}/assets/data/cov/{noise_dataset}_data.mat') if cov_mat \
-        else scipy.io.loadmat(f'{project_dir}/assets/data/corr/{noise_dataset}_data.mat')
+    noise_data = pd.read_pickle(f'{project_dir}/assets/data/cov/{noise_dataset}_data.pkl') if cov_mat \
+        else pd.read_pickle(f'{project_dir}/assets/data/{noise_dataset}_data.pkl')
 
 
     
 
-    
-    
+    L, correlation_matrix = get_subject_data(subject_id, noise_data)
 
-    L = noise_data['L']
-    correlation_matrix = noise_data['corr_mat']
+    data_params['correlation_matrix'] = correlation_matrix
 
     if cov_mat:
-        covariance_matrix = noise_data['cov_mat']    
+        covariance_matrix = noise_data['cov_mat']    #TODO load old dict
         logging.debug(f'covariance_matrix {covariance_matrix}')
         data_params['covariance_matrix'] = covariance_matrix
-    else:
-        correlation_matrix = noise_data['corr_mat']    
-        logging.debug(f'correlation_matrix {correlation_matrix}')
-        data_params['correlation_matrix'] = correlation_matrix
 
     logging.debug(f'L {L}')
     logging.debug(f'correlation_matrix {correlation_matrix}')
@@ -474,6 +471,7 @@ def set_data_params(args, project_dir):
     data_params["num_noise"] = num_noise
     data_params["kernel_type"] = kernel_type
     data_params['cov_mat'] = cov_mat
+    data_params['subject_id'] = subject_id
 
 
     return data_params
@@ -577,3 +575,15 @@ def save_best_hyperparameters(data_params, best_trial):
 
     with open(result_file, 'wb') as f:
         pickle.dump(best_trial.params, f)
+
+
+
+
+
+    
+
+def get_subject_data(subject_id, noise_data):
+    sub_data = noise_data[noise_data['subject'] == subject_id]
+    L = sub_data['L'].iloc[0]
+    corr_mat = sub_data['corr_mat'].iloc[0]
+    return L, corr_mat

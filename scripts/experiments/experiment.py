@@ -22,6 +22,8 @@ def main():
     parser.add_argument('-n', '--noise-dataset', type=str, help='noise dataset name (FBIRN, COBRE, VAR)', required=True)
     parser.add_argument('-s', '--signal-dataset', type=str, help='signal dataset name (OULU, HCP)', required=True)
     
+
+    parser.add_argument('-p', '--subject-id', type=str, help='subject to use for noise', required=False)
     parser.add_argument('-i', '--snr-int', type=float, nargs='+', help='upper, lower, step of SNR interval', required=False)
     parser.add_argument('-f', '--n-folds', type=int, help='number of folds for cross-validation', required=False)
     parser.add_argument('-nn', '--num_noise', type=int, help='number of noise iterations', required=False)
@@ -40,6 +42,7 @@ def main():
     log_level = data_params['log_level']
     num_noise = data_params['num_noise']
     cov_mat = data_params['cov_mat']
+    subject_id = data_params['subject_id']
 
     logging.basicConfig(level=log_level, format='%(asctime)s - %(levelname)s - %(message)s')
 
@@ -52,6 +55,7 @@ def main():
     logging.info(f'Noise Iterations: {num_noise}')
     logging.info(f'Use correlation matrix: {not cov_mat}')
     logging.info(f'Use covariance matrix: {cov_mat}')
+    logging.info(f'Noise Subject ID: {subject_id}')
 
     
 
@@ -143,7 +147,7 @@ def main():
                 month_date = '{}-{}'.format(datetime.now().strftime('%m'), datetime.now().strftime('%d'))
         
 
-                filename = f'{key}_{SNR}_{noise_dataset}_{signal_dataset}_{current_date}.pkl'
+                filename = f'{key}_{SNR}_{noise_dataset}_{signal_dataset}_{current_date}_{subject_id}.pkl'
                 
                 directory = Path(f'{pkl_dir}/{month_date}')
                 directory.mkdir(parents=True, exist_ok=True)
