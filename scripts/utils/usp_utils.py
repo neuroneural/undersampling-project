@@ -393,6 +393,9 @@ def set_data_params(args, project_dir):
     else:
         subject_id = '000300655084' if noise_dataset.lower() == 'fbirn' else '0'
 
+    if noise_dataset.lower() == 'cobre':
+        subject_id = int(subject_id)
+
     if hasattr(args, 'n_folds'):
         n_folds = args.n_folds if args.n_folds != None else 7
     else:
@@ -471,7 +474,7 @@ def set_data_params(args, project_dir):
     data_params["num_noise"] = num_noise
     data_params["kernel_type"] = kernel_type
     data_params['cov_mat'] = cov_mat
-    data_params['subject_id'] = subject_id
+    data_params['subject_id'] = subject_id 
 
 
     return data_params
