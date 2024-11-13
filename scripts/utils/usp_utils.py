@@ -577,3 +577,31 @@ def save_best_hyperparameters(data_params, best_trial):
 
     with open(result_file, 'wb') as f:
         pickle.dump(best_trial.params, f)
+
+
+
+def permute_windows(X_sr1, X_sr2, y_sr1, y_sr2):
+    window_pairs = []
+    labels = []
+    
+    for i in range(X_sr1.shape[0]):
+        window_pairs.append((X_sr1[i], X_sr2[i]))
+        assert y_sr1[i] == y_sr2[i], "only same class windows may be paired"
+        labels.append(y_sr1[i])
+    
+    for i in range(X_sr1.shape[0]):
+        for j in range(i+1, X_sr2.shape[0]):
+            window_pairs.append((X_sr1[i], X_sr2[j]))
+            assert y_sr1[i] == y_sr2[j], "only same class windows may be paired"
+            labels.append(y_sr1[i])
+
+    window_pairs = np.array(window_pairs)
+    labels = np.array(labels)
+    return window_pairs, labels
+
+
+def get_add_features(X_sr1, X_sr2, y_sr1, y_sr2):
+    X_add = []
+    y_add = []
+
+
