@@ -127,7 +127,9 @@ def main():
                             'test_scores': scores, 
                             'target': report.target, 
                             'predictions': np.array(report.predictions[classifier]).astype(int),
-                            'test_proba': report.test_proba[classifier]
+                            'test_proba': report.test_proba[classifier],
+                            'subject' : subject_id, 
+                            'time' : str(int(time.time()))
                         }
                     )
 
