@@ -3,6 +3,7 @@ import logging
 import pickle
 from datetime import *
 from pathlib import Path
+import sys
 import time
 import os
 
@@ -580,28 +581,122 @@ def save_best_hyperparameters(data_params, best_trial):
 
 
 
-def permute_windows(X_sr1, X_sr2, y_sr1, y_sr2):
+def create_window_pairs(sr1_df, sr2_df):
+    subjects = np.unique(sr1_df['subject'])
+    #iterate through all subjects' windows
+    #combine the windows to form pairs based on the target
     window_pairs = []
-    labels = []
+    class_labels = []
+    group_labels = []
+
+    for label in [0, 1]:
+        for subject in subjects:
+            sr1_windows = sr1_df[(sr1_df['subject'] == subject) & (sr1_df['target'] == str(label))]
+            sr2_windows = sr2_df[(sr2_df['subject'] == subject) & (sr2_df['target'] == str(label))]
+            
+            n_windows = len(sr1_windows)
+
+
+            for i in range(n_windows):
+                for j in range(i+1, n_windows):
+                    sr1_row = sr1_windows.iloc[i]
+                    sr2_row = sr2_windows.iloc[j]
+
+                    sr1 = sr1_row['SR1_Window']
+                    sr2 = sr2_row['SR2_Window']
+                    
+
+                    #get the target for the window and assert that they are the same
+                    sr1_target = sr1_row['target']
+                    sr2_target = sr2_row['target']
+                    assert sr1_target == sr2_target, 'Targets should be the same'
+
+                    #get the subject for the window and assert that they are the same
+                    sr1_subject = sr1_row['subject']
+                    sr2_subject = sr2_row['subject']
+                    assert sr1_subject == sr2_subject, 'Subjects should be the same'
+
+                    window_pair = (sr1, sr2)
+                    class_label = list(set([sr1_target, sr2_target]))[0]
+                    group_label = list(set([sr1_subject, sr2_subject]))[0]
+
+                    window_pairs.append(window_pair)
+                    class_labels.append(class_label)
+                    group_labels.append(group_label)
+
+    return window_pairs, class_labels, group_labels
+
+
+def get_combined_features(window_pairs, class_labels, group_labels, type='none'):
+    assert len(window_pairs) == len(class_labels) == len(group_labels) == 1600, \
+        'Length of windows, class labels, and group labels should be 1600'
+
+    #return list of windows where each window is the sum of two windows
+    X = []
+    y = []
+    group = []
+
+    for pair in window_pairs:
+        if type == 'add':
+            X.append(pair[0] + pair[1])
+        elif type == 'concat':
+            concat_feature = np.concatenate((pair[0], pair[1]))
+            assert len(concat_feature) == 1431*2, 'Concatenation should have the same length as the sum of the two windows'
+            X.append(concat_feature)
+        else:
+            print('No feature combination type specified')
+            sys.exit(1)
     
-    for i in range(X_sr1.shape[0]):
-        window_pairs.append((X_sr1[i], X_sr2[i]))
-        assert y_sr1[i] == y_sr2[i], "only same class windows may be paired"
-        labels.append(y_sr1[i])
+    X = np.array(X)
+
+    #take the first entries of the class labels while asserting that they are the same, add them into the y list
+    for label in class_labels:
+        assert label[0] == label[1], 'Class labels should be the same'
+        y.append(label[0])
     
-    for i in range(X_sr1.shape[0]):
-        for j in range(i+1, X_sr2.shape[0]):
-            window_pairs.append((X_sr1[i], X_sr2[j]))
-            assert y_sr1[i] == y_sr2[j], "only same class windows may be paired"
-            labels.append(y_sr1[i])
+    #take the first entries of the group labels while asserting that they are the same, add them into the group list
+    for label in group_labels:
+        assert label[0] == label[1], 'Group labels should be the same'
+        group.append(label[0])
 
-    window_pairs = np.array(window_pairs)
-    labels = np.array(labels)
-    return window_pairs, labels
+    #use a label encoder to encode the class labels
+    le = LabelEncoder()
+    y = le.fit_transform(y)
+
+    #use a label encoder to encode the group labels
+    le_group = LabelEncoder()
+    group = le_group.fit_transform(group)
+
+    return X, y, group
 
 
-def get_add_features(X_sr1, X_sr2, y_sr1, y_sr2):
-    X_add = []
-    y_add = []
+
+def shuffle_windows(window_pairs, class_labels, group_labels):
+    #does the dataset need to be balanced? how do we handle that?
 
 
+    #shuffle the windows and return the shuffled windows
+    n_windows = len(window_pairs)
+    indices = np.arange(n_windows)
+    np.random.shuffle(indices)
+
+    shuffled_pairs = []
+    shuffled_class_labels = []
+    shuffled_group_labels = []
+
+    for i in range(n_windows):
+        shuffled_pairs.append(window_pairs[indices[i]])
+        shuffled_class_labels.append(class_labels[indices[i]])
+        shuffled_group_labels.append(group_labels[indices[i]])
+
+    return shuffled_pairs, shuffled_class_labels, shuffled_group_labels
+
+def take_first_n_windows(shuffled_pairs, shuffled_class_labels, shuffled_group_labels):
+    #[TODO] implement this function
+    #extract the window pairs for one subject
+    #extract the window pairs from one class from the subject
+    #take the first n window pairs, given they are from one subject and one class
+    #append these to a list to return as the n selected windows
+    #keeps the subject distribution balanced as well as the class distribution balanced
+    
+    pass
