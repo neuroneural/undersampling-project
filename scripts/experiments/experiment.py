@@ -13,7 +13,8 @@ from utils.usp_utils import *
 
 
 def main():
-    project_dir = '/data/users2/jwardell1/undersampling-project'
+    #project_dir = '/data/users2/jwardell1/undersampling-project'
+    project_dir = '/Users/jwardell1/Library/CloudStorage/OneDrive-GeorgiaStateUniversity/undersampling-project/'
 
     
     parser = argparse.ArgumentParser()
@@ -27,6 +28,8 @@ def main():
     parser.add_argument('-nn', '--num_noise', type=int, help='number of noise iterations', required=False)
     parser.add_argument('-v', '--verbose', action='store_true', help='turn on debug logging', required=False)
     parser.add_argument('-cv', '--cov-mat', action='store_true', help='use covariance matrix, default uses correlation matrix', required=False)
+    parser.add_argument('-w', '--window-pairs', action='store_true', help='use random combinations of windows', required=False)
+    
     
     args = parser.parse_args()
     data_params = set_data_params(args, project_dir)
@@ -40,6 +43,7 @@ def main():
     log_level = data_params['log_level']
     num_noise = data_params['num_noise']
     cov_mat = data_params['cov_mat']
+    window_pairs = data_params['window_pairs']
 
     logging.basicConfig(level=log_level, format='%(asctime)s - %(levelname)s - %(message)s')
 
@@ -52,6 +56,7 @@ def main():
     logging.info(f'Noise Iterations: {num_noise}')
     logging.info(f'Use correlation matrix: {not cov_mat}')
     logging.info(f'Use covariance matrix: {cov_mat}')
+    logging.info(f'Random Window Pairs: {window_pairs}')
 
     
 
@@ -88,20 +93,27 @@ def main():
             X_sr1, y_sr1, group_sr1 = parse_X_y_groups(sr1_df, 'SR1')
             X_sr2, y_sr2, group_sr2 = parse_X_y_groups(sr2_df, 'SR2')
         
-            # generates all combinations of window pairs, ordered by class label and subject id
-            window_pairs, class_labels, group_labels = create_window_pairs(sr1_df, sr2_df)
 
-            # shuffles the window pairs, preserves the class labels, and group labels
-            windows_sh, class_sh, group_sh = shuffle_windows(window_pairs, class_labels, group_labels)
+            if window_pairs:
+                # generates all combinations of window pairs, ordered by class label and subject id
+                window_pairs, class_labels, group_labels = create_window_pairs(sr1_df, sr2_df)
 
-            # takes the first n window pairs, ordered by class label and subject id
-            windows_st, class_st, group_st = take_first_n_windows(windows_sh, class_sh, group_sh)
+                # shuffles the window pairs, preserves the class labels, and group labels
+                windows_sh, class_sh, group_sh = shuffle_windows(window_pairs, class_labels, group_labels)
+
+                # takes the first n window pairs, ordered by class label and subject id
+                windows_st, class_st, group_st = take_first_n_windows(windows_sh, class_sh, group_sh)
 
 
 
-            #use the random window combinations to generate the add and concat features
-            X_add, y_add, group_add = get_combined_features(windows_st, class_st, group_st, type='add')
-            X_concat, y_concat, group_concat = get_combined_features(windows_st, class_st, group_st, type='concat')
+                #use the random window combinations to generate the add and concat features
+                X_add, y_add, group_add = get_combined_features(windows_st, class_st, group_st, type='add')
+                X_concat, y_concat, group_concat = get_combined_features(windows_st, class_st, group_st, type='concat')
+            
+            else:
+                X_add, y_add, group_add = parse_X_y_groups(pd.DataFrame(add_data), 'Add')
+                X_concat, y_concat, group_concat = parse_X_y_groups(pd.DataFrame(concat_data), 'Concat')
+
 
 
             datasets = [

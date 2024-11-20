@@ -382,6 +382,7 @@ def set_data_params(args, project_dir):
     
     
     log_level = 'DEBUG' if args.verbose else 'INFO'
+    window_pairs = True if args.window_pairs else False
 
     logging.basicConfig(level=log_level, format='%(asctime)s - %(levelname)s - %(message)s')
 
@@ -475,6 +476,7 @@ def set_data_params(args, project_dir):
     data_params["num_noise"] = num_noise
     data_params["kernel_type"] = kernel_type
     data_params['cov_mat'] = cov_mat
+    data_params['window_pairs'] = window_pairs
 
 
     return data_params
