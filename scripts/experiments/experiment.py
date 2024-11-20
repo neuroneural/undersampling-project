@@ -94,29 +94,9 @@ def main():
             # shuffles the window pairs, preserves the class labels, and group labels
             windows_sh, class_sh, group_sh = shuffle_windows(window_pairs, class_labels, group_labels)
 
-
-
-
-############################################################################################################
-############################################################################################################
-############################################################################################################
-
-            #################   OPTION 1
-            # takes the first n window combinations for each subject and class 
-                # keeps the subject and class distribution balanced
+            # takes the first n window pairs, ordered by class label and subject id
             windows_st, class_st, group_st = take_first_n_windows(windows_sh, class_sh, group_sh)
 
-
-            #################   OPTION 2
-            # takes first 1600 windows, regardless of subject and class
-                # does not keep the subject and class distribution balanced
-            windows_st = windows_sh[:1600]
-            class_st = class_sh[:1600]
-            group_st = group_sh[:1600]
-
-############################################################################################################
-############################################################################################################
-############################################################################################################
 
 
             #use the random window combinations to generate the add and concat features
