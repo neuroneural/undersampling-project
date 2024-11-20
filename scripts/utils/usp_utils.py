@@ -649,15 +649,11 @@ def get_combined_features(window_pairs, class_labels, group_labels, type='none')
     
     X = np.array(X)
 
-    #take the first entries of the class labels while asserting that they are the same, add them into the y list
     for label in class_labels:
-        assert label[0] == label[1], 'Class labels should be the same'
-        y.append(label[0])
+        y.append(label)
     
-    #take the first entries of the group labels while asserting that they are the same, add them into the group list
     for label in group_labels:
-        assert label[0] == label[1], 'Group labels should be the same'
-        group.append(label[0])
+        group.append(label)
 
     #use a label encoder to encode the class labels
     le = LabelEncoder()
@@ -691,12 +687,29 @@ def shuffle_windows(window_pairs, class_labels, group_labels):
 
     return shuffled_pairs, shuffled_class_labels, shuffled_group_labels
 
-def take_first_n_windows(shuffled_pairs, shuffled_class_labels, shuffled_group_labels):
-    #[TODO] implement this function
-    #extract the window pairs for one subject
-    #extract the window pairs from one class from the subject
-    #take the first n window pairs, given they are from one subject and one class
-    #append these to a list to return as the n selected windows
-    #keeps the subject distribution balanced as well as the class distribution balanced
+def take_first_n_windows(windows_sh, class_sh, group_sh):
+    windows_st = []
+    class_st = []
+    group_st = []
+
+    win_df = pd.DataFrame({
+        'pair_ix': range(len(windows_sh)), 
+        'window_pair': windows_sh,         
+        'subject': group_sh,      
+        'target': class_sh       
+    })
+    #select the window pairs from one subject from the win_df
+    subjects = np.unique(win_df['subject'])
+    for subject in subjects:
+        subject_windows = win_df[win_df['subject'] == subject]
+        #select the window pairs from one class from the subject
+        for label in ['0', '1']:
+            class_windows = subject_windows[subject_windows['target'] == label]
+            #take the first n window pairs, given they are from one subject and one class
+            n = 80
+            selected_windows = class_windows.iloc[:n]
+            windows_st.extend(selected_windows['window_pair'].values)
+            class_st.extend(selected_windows['target'].values)
+            group_st.extend(selected_windows['subject'].values)
     
-    pass
+    return windows_st, class_st, group_st
