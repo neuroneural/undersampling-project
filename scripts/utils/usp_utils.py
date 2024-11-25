@@ -3,6 +3,7 @@ import logging
 import pickle
 from datetime import *
 from pathlib import Path
+import sys
 import time
 import os
 
@@ -43,9 +44,6 @@ def create_colored_noise(corr_mat, L, noise_size):
     white_noise = np.random.multivariate_normal(mean, np.eye(corr_mat.shape[0]), size=noise_size)
     colored_noise = white_noise @ L.T
     colored_noise = colored_noise.T
-    #colored_noise = zscore(colored_noise, axis=1)
-    #colored_noise = detrend(colored_noise, axis=1)
-    #the noise should have mean zero and covariance should not be the identity right ???
     return colored_noise
 
 
@@ -381,6 +379,7 @@ def set_data_params(args, project_dir):
     
     
     log_level = 'DEBUG' if args.verbose else 'INFO'
+    window_pairs = True if args.window_pairs else False
 
     logging.basicConfig(level=log_level, format='%(asctime)s - %(levelname)s - %(message)s')
 
@@ -389,6 +388,15 @@ def set_data_params(args, project_dir):
     noise_dataset = args.noise_dataset.upper()
 
 
+
+
+    if hasattr(args, 'subject_id'):
+        subject_id = args.subject_id if args.subject_id != None else '000300655084'
+    else:
+        subject_id = '000300655084' if noise_dataset.lower() == 'fbirn' else '0'
+
+    if noise_dataset.lower() == 'cobre':
+        subject_id = int(subject_id)
 
     if hasattr(args, 'n_folds'):
         n_folds = args.n_folds if args.n_folds != None else 7
@@ -417,26 +425,20 @@ def set_data_params(args, project_dir):
 
 
     signal_data = pd.read_pickle(f'{project_dir}/assets/data/{signal_dataset}_data.pkl')
-    noise_data = scipy.io.loadmat(f'{project_dir}/assets/data/cov/{noise_dataset}_data.mat') if cov_mat \
-        else scipy.io.loadmat(f'{project_dir}/assets/data/{noise_dataset}_data.mat')
+    noise_data = pd.read_pickle(f'{project_dir}/assets/data/cov/{noise_dataset}_data.pkl') if cov_mat \
+        else pd.read_pickle(f'{project_dir}/assets/data/{noise_dataset}_data.pkl')
 
 
     
 
-    
-    
+    L, correlation_matrix = get_subject_data(subject_id, noise_data)
 
-    L = noise_data['L']
-    correlation_matrix = noise_data['corr_mat']
+    data_params['correlation_matrix'] = correlation_matrix
 
     if cov_mat:
-        covariance_matrix = noise_data['cov_mat']    
+        covariance_matrix = noise_data['cov_mat']    #TODO load old dict
         logging.debug(f'covariance_matrix {covariance_matrix}')
         data_params['covariance_matrix'] = covariance_matrix
-    else:
-        correlation_matrix = noise_data['corr_mat']    
-        logging.debug(f'correlation_matrix {correlation_matrix}')
-        data_params['correlation_matrix'] = correlation_matrix
 
     logging.debug(f'L {L}')
     logging.debug(f'correlation_matrix {correlation_matrix}')
@@ -474,6 +476,8 @@ def set_data_params(args, project_dir):
     data_params["num_noise"] = num_noise
     data_params["kernel_type"] = kernel_type
     data_params['cov_mat'] = cov_mat
+    data_params['subject_id'] = subject_id 
+    data_params['window_pairs'] = window_pairs
 
 
     return data_params
@@ -577,3 +581,149 @@ def save_best_hyperparameters(data_params, best_trial):
 
     with open(result_file, 'wb') as f:
         pickle.dump(best_trial.params, f)
+
+
+
+def create_window_pairs(sr1_df, sr2_df):
+    subjects = np.unique(sr1_df['subject'])
+    #iterate through all subjects' windows
+    #combine the windows to form pairs based on the target
+    window_pairs = []
+    class_labels = []
+    group_labels = []
+
+    for label in [0, 1]:
+        for subject in subjects:
+            sr1_windows = sr1_df[(sr1_df['subject'] == subject) & (sr1_df['target'] == str(label))]
+            sr2_windows = sr2_df[(sr2_df['subject'] == subject) & (sr2_df['target'] == str(label))]
+            
+            n_windows = len(sr1_windows)
+
+
+            for i in range(n_windows):
+                for j in range(i+1, n_windows):
+                    sr1_row = sr1_windows.iloc[i]
+                    sr2_row = sr2_windows.iloc[j]
+
+                    sr1 = sr1_row['SR1_Window']
+                    sr2 = sr2_row['SR2_Window']
+                    
+
+                    #get the target for the window and assert that they are the same
+                    sr1_target = sr1_row['target']
+                    sr2_target = sr2_row['target']
+                    assert sr1_target == sr2_target, 'Targets should be the same'
+
+                    #get the subject for the window and assert that they are the same
+                    sr1_subject = sr1_row['subject']
+                    sr2_subject = sr2_row['subject']
+                    assert sr1_subject == sr2_subject, 'Subjects should be the same'
+
+                    window_pair = (sr1, sr2)
+                    class_label = list(set([sr1_target, sr2_target]))[0]
+                    group_label = list(set([sr1_subject, sr2_subject]))[0]
+
+                    window_pairs.append(window_pair)
+                    class_labels.append(class_label)
+                    group_labels.append(group_label)
+
+    return window_pairs, class_labels, group_labels
+
+
+def get_combined_features(window_pairs, class_labels, group_labels, type='none'):
+    assert len(window_pairs) == len(class_labels) == len(group_labels) == 1600, \
+        'Length of windows, class labels, and group labels should be 1600'
+
+    #return list of windows where each window is the sum of two windows
+    X = []
+    y = []
+    group = []
+
+    for pair in window_pairs:
+        if type == 'add':
+            X.append(pair[0] + pair[1])
+        elif type == 'concat':
+            concat_feature = np.concatenate((pair[0], pair[1]))
+            assert len(concat_feature) == 1431*2, 'Concatenation should have the same length as the sum of the two windows'
+            X.append(concat_feature)
+        else:
+            print('No feature combination type specified')
+            sys.exit(1)
+    
+    X = np.array(X)
+
+    for label in class_labels:
+        y.append(label)
+    
+    for label in group_labels:
+        group.append(label)
+
+    #use a label encoder to encode the class labels
+    le = LabelEncoder()
+    y = le.fit_transform(y)
+
+    #use a label encoder to encode the group labels
+    le_group = LabelEncoder()
+    group = le_group.fit_transform(group)
+
+    return X, y, group
+
+
+
+def shuffle_windows(window_pairs, class_labels, group_labels):
+    #does the dataset need to be balanced? how do we handle that?
+
+
+    #shuffle the windows and return the shuffled windows
+    n_windows = len(window_pairs)
+    indices = np.arange(n_windows)
+    np.random.shuffle(indices)
+
+    shuffled_pairs = []
+    shuffled_class_labels = []
+    shuffled_group_labels = []
+
+    for i in range(n_windows):
+        shuffled_pairs.append(window_pairs[indices[i]])
+        shuffled_class_labels.append(class_labels[indices[i]])
+        shuffled_group_labels.append(group_labels[indices[i]])
+
+    return shuffled_pairs, shuffled_class_labels, shuffled_group_labels
+
+def take_first_n_windows(windows_sh, class_sh, group_sh):
+    windows_st = []
+    class_st = []
+    group_st = []
+
+    win_df = pd.DataFrame({
+        'pair_ix': range(len(windows_sh)), 
+        'window_pair': windows_sh,         
+        'subject': group_sh,      
+        'target': class_sh       
+    })
+    #select the window pairs from one subject from the win_df
+    subjects = np.unique(win_df['subject'])
+    for subject in subjects:
+        subject_windows = win_df[win_df['subject'] == subject]
+        #select the window pairs from one class from the subject
+        for label in ['0', '1']:
+            class_windows = subject_windows[subject_windows['target'] == label]
+            #take the first n window pairs, given they are from one subject and one class
+            n = 80
+            selected_windows = class_windows.iloc[:n]
+            windows_st.extend(selected_windows['window_pair'].values)
+            class_st.extend(selected_windows['target'].values)
+            group_st.extend(selected_windows['subject'].values)
+    
+    return windows_st, class_st, group_st
+
+
+
+
+    
+
+def get_subject_data(subject_id, noise_data):
+    sub_data = noise_data[noise_data['subject'] == subject_id]
+    L = sub_data['L'].iloc[0]
+    corr_mat = sub_data['corr_mat'].iloc[0]
+    return L, corr_mat
