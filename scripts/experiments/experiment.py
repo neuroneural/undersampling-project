@@ -13,8 +13,7 @@ from utils.usp_utils import *
 
 
 def main():
-    #project_dir = '/data/users2/jwardell1/undersampling-project'
-    project_dir = '/Users/jwardell1/Library/CloudStorage/OneDrive-GeorgiaStateUniversity/undersampling-project/'
+    project_dir = '/data/users2/jwardell1/undersampling-project'
 
     
     parser = argparse.ArgumentParser()
@@ -175,9 +174,10 @@ def main():
                 month_date = '{}-{}'.format(datetime.now().strftime('%m'), datetime.now().strftime('%d'))
         
 
-                filename = f'{key}_{SNR}_{noise_dataset}_{signal_dataset}_{current_date}_{subject_id}.pkl'
+                filename = f'{key}_{SNR}_{noise_dataset}_{signal_dataset}_{current_date}_{subject_id}.pkl' if not window_pairs \
+                    else f'{key}_{SNR}_{noise_dataset}_{signal_dataset}_{current_date}_{subject_id}_rwp.pkl'
                 
-                directory = Path(f'{pkl_dir}/{month_date}')
+                directory = Path(f'{pkl_dir}/{month_date}') if not window_pairs else Path(f'{pkl_dir}/{month_date}/rwp')
                 directory.mkdir(parents=True, exist_ok=True)
 
                 df.to_pickle(f'{directory}/{filename}')
