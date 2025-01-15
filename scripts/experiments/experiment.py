@@ -120,9 +120,9 @@ def main():
 
 
             datasets = [
-                ('sr1', X_sr1, y_sr1, group_sr1),
-                ('sr2', X_sr2, y_sr2, group_sr2),
-                ('add', X_add, y_add, group_add),
+                #('sr1', X_sr1, y_sr1, group_sr1),
+                #('sr2', X_sr2, y_sr2, group_sr2),
+                #('add', X_add, y_add, group_add),
                 ('concat', X_concat, y_concat, group_concat),
             ]
 
@@ -135,13 +135,13 @@ def main():
 
 
                 report = poly(data=X, label=y, groups=group, n_folds=n_folds, scale=True, concurrency=1, save=False, 
-                            exclude=['Decision Tree', 'Random Forest', 'Voting', 'Nearest Neighbors', 'Linear SVM'], scoring='auc', 
-                            project_name=sr)
+                            exclude=['Decision Tree', 'Random Forest', 'Voting', 'Nearest Neighbors', 'Linear SVM', 'SVM', 'Multilayer Perceptron', 'Naive Bayes'], scoring='auc', 
+                             project_name=sr)
                 
                 for classifier in report.scores.columns.levels[0]:
                     if classifier == 'Voting':
                         continue
-                    
+
                     scores = report.scores[classifier, 'test']
 
                     results[sr].append(
@@ -154,7 +154,8 @@ def main():
                             'predictions': np.array(report.predictions[classifier]).astype(int),
                             'test_proba': report.test_proba[classifier],
                             'subject' : subject_id, 
-                            'time' : str(int(time.time()))
+                            'time' : str(int(time.time())),
+                            'feature-importance' : report.coefficients['Logistic Regression'][0][0]
                         }
                     )
 
