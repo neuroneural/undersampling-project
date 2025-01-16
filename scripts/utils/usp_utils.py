@@ -395,6 +395,12 @@ def set_data_params(args, project_dir):
     else:
         subject_id = '000300655084' if noise_dataset.lower() == 'fbirn' else '0'
 
+
+    if hasattr(args, 'us_rate'):
+        us_rate = args.us_rate if args.us_rate != None else 6
+    else:
+        us_rate = 6 if signal_dataset.lower() == 'hcp' else 1
+
     if noise_dataset.lower() == 'cobre':
         subject_id = int(subject_id)
 
@@ -456,7 +462,7 @@ def set_data_params(args, project_dir):
 
     if signal_dataset == 'HCP':
         NOISE_SIZE = 1200
-        undersampling_rate = 6
+        undersampling_rate = us_rate
 
     subjects = np.unique(signal_data['subject'])
     
@@ -471,14 +477,13 @@ def set_data_params(args, project_dir):
     data_params['sampler'] = sampler
     data_params['signal_data'] = signal_data
     data_params['noise_data'] = noise_data
-    data_params['undersampling_rate'] = undersampling_rate
+    data_params['undersampling_rate'] = int(undersampling_rate)
     data_params['NOISE_SIZE'] = NOISE_SIZE
     data_params["num_noise"] = num_noise
     data_params["kernel_type"] = kernel_type
     data_params['cov_mat'] = cov_mat
     data_params['subject_id'] = subject_id 
     data_params['window_pairs'] = window_pairs
-
 
     return data_params
 

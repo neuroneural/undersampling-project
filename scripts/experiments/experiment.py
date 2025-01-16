@@ -23,6 +23,8 @@ def main():
     parser.add_argument('-s', '--signal-dataset', type=str, help='signal dataset name (OULU, HCP)', required=True)
     
 
+    parser.add_argument('-u', '--us-rate', type=str, help='undersampling rate for HCP dataset', required=False)
+
     parser.add_argument('-p', '--subject-id', type=str, help='subject to use for noise', required=False)
     parser.add_argument('-i', '--snr-int', type=float, nargs='+', help='upper, lower, step of SNR interval', required=False)
     parser.add_argument('-f', '--n-folds', type=int, help='number of folds for cross-validation', required=False)
@@ -46,6 +48,7 @@ def main():
     cov_mat = data_params['cov_mat']
     subject_id = data_params['subject_id']
     window_pairs = data_params['window_pairs']
+    us_rate = data_params['undersampling_rate']
 
     logging.basicConfig(level=log_level, format='%(asctime)s - %(levelname)s - %(message)s')
 
@@ -60,6 +63,8 @@ def main():
     logging.info(f'Use covariance matrix: {cov_mat}')
     logging.info(f'Noise Subject ID: {subject_id}')
     logging.info(f'Random Window Pairs: {window_pairs}')
+    if signal_dataset.lower() == 'hcp':
+        logging.info(f'Undersampling rate for HCP dataset: {us_rate}')
 
     
 
@@ -154,7 +159,9 @@ def main():
                             'predictions': np.array(report.predictions[classifier]).astype(int),
                             'test_proba': report.test_proba[classifier],
                             'subject' : subject_id, 
-                            'time' : str(int(time.time()))
+                            'time' : str(int(time.time())),
+                            'us_rate' : us_rate
+
                         }
                     )
 
@@ -174,8 +181,8 @@ def main():
                 month_date = '{}-{}'.format(datetime.now().strftime('%m'), datetime.now().strftime('%d'))
         
 
-                filename = f'{key}_{SNR}_{noise_dataset}_{signal_dataset}_{current_date}_{subject_id}.pkl' if not window_pairs \
-                    else f'{key}_{SNR}_{noise_dataset}_{signal_dataset}_{current_date}_{subject_id}_rwp.pkl'
+                filename = f'{key}_{SNR}_{noise_dataset}_{signal_dataset}_{current_date}_{subject_id}_usrate_{us_rate}.pkl' if not window_pairs \
+                    else f'{key}_{SNR}_{noise_dataset}_{signal_dataset}_{current_date}_{subject_id}_usrate_{us_rate}_rwp.pkl'
                 
                 directory = Path(f'{pkl_dir}/{month_date}') if not window_pairs else Path(f'{pkl_dir}/{month_date}/rwp')
                 directory.mkdir(parents=True, exist_ok=True)
