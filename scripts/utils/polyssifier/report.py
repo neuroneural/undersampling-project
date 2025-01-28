@@ -13,7 +13,8 @@ class Report(object):
     """
 
     def __init__(self, scores, confusions, predictions, target,
-                 test_prob, coefficients, feature_selection,
+                 test_prob, coefficients, feature_selection, 
+                 p_values, fdr_corrected_pvals, significant_features,
                  scoring='auc'):
         self.scores = scores
         self.confusions = confusions
@@ -23,6 +24,9 @@ class Report(object):
         self.coefficients = coefficients
         self.scoring = scoring
         self._feature_selection = feature_selection
+        self.p_values = p_values
+        self.fdr_corrected_pvals = fdr_corrected_pvals
+        self.significant_features = significant_features
 
     def plot_scores(self, path='temp'):
         plot_scores(self.scores, self.scoring, path)

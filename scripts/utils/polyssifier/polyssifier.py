@@ -18,6 +18,8 @@ import time
 from itertools import starmap
 import joblib
 
+import statsmodels.api as sm
+import statsmodels.stats.multitest as smm
 
 
 logger = logging.getLogger(__name__)
@@ -74,6 +76,9 @@ def poly(data, label, groups=None, n_folds=10, scale=True, exclude=[],
                              index=range(data.shape[0]))
     confusions = {}
     coefficients = {}
+    p_values = {}
+    fdr_corrected_pvals = {}
+    significant_features = {}
     # !fitted_clfs =
     # pd.DataFrame(columns=classifiers.keys(), index = range(n_folds))
 
@@ -133,7 +138,8 @@ def poly(data, label, groups=None, n_folds=10, scale=True, exclude=[],
         clfs = fitted_clfs[clf_name]
         for n in range(n_folds):
             train_score, test_score, prediction, prob, confusion,\
-                coefs, fitted_clf = result.pop(0)
+                coefs, fitted_clf, model_p_values,\
+                model_fdr_corrected_pvals, model_significant_features = result.pop(0)
             clfs.append(fitted_clf)
             scores.loc[n, (clf_name, 'train')] = train_score
             scores.loc[n, (clf_name, 'test')] = test_score
@@ -145,6 +151,9 @@ def poly(data, label, groups=None, n_folds=10, scale=True, exclude=[],
         confusions[clf_name] = temp
         predictions[clf_name] = temp_pred
         test_prob[clf_name] = temp_prob
+        p_values[clf_name] = model_p_values
+        fdr_corrected_pvals[clf_name] = model_fdr_corrected_pvals
+        significant_features[clf_name] = model_significant_features
 
     # Voting
     fitted_clfs = pd.DataFrame(fitted_clfs)
@@ -178,8 +187,9 @@ def poly(data, label, groups=None, n_folds=10, scale=True, exclude=[],
     return Report(scores=scores, confusions=confusions,
                 predictions=predictions, test_prob=test_prob,
                 coefficients=coefficients,
-                feature_selection=feature_selection, target=label)
-    
+                feature_selection=feature_selection, target=label,
+                p_values=p_values, fdr_corrected_pvals=fdr_corrected_pvals, 
+                significant_features=significant_features)
 
 
 
@@ -493,6 +503,14 @@ def fit_clf(args, clf_name, val, n_fold, project_name, save, scoring):
     logger.info('{0:25} {1:2}: Train {2:.2f}/Test {3:.2f}, {4:.2f} sec'.format(
         clf_name, n_fold, train_score, test_score, duration))
 
+    coefficients = None
+    p_values = None
+    fdr_corrected_pvals = None
+    significant_features = None
+
+    
+
+
     # Feature importance
     if hasattr(clf, 'steps'):
         temp = clf.steps[-1][1]
@@ -504,20 +522,29 @@ def fit_clf(args, clf_name, val, n_fold, project_name, save, scoring):
     try:
         if hasattr(temp, 'coef_'):
             coefficients = temp.coef_
+
+            
         elif hasattr(temp, 'feature_importances_'):
             coefficients = temp.feature_importances_
         else:
             coefficients = None
-    except:
+    except Exception as e:
+        print(e)
         coefficients = None
-    
+
+  
+        
+        
     logger.info(f'Completed fold {n_fold} for classifier {clf_name}')
 
     return (train_score, test_score,
             ypred, yprob,  # predictions and probabilities
             confusion,  # confusion matrix
             coefficients,  # Coefficients for feature ranking
-            clf)  # fitted clf
+            clf,
+            p_values,
+            fdr_corrected_pvals,
+            significant_features)  # fitted clf
 
 
 def create_polynomial(data, degree):
