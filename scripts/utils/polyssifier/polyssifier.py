@@ -19,7 +19,13 @@ from itertools import starmap
 import joblib
 
 import statsmodels.api as sm
-import statsmodels.stats.multitest as smm
+from statsmodels.stats.multitest import multipletests
+
+from scipy.optimize import minimize
+
+from sklearn.calibration import CalibratedClassifierCV
+from scipy.stats import norm
+
 
 
 logger = logging.getLogger(__name__)
@@ -478,6 +484,8 @@ def fit_clf(args, clf_name, val, n_fold, project_name, save, scoring):
     # Scores
     test_score = _scorer(clf, X, y)
     ypred = clf.predict(X)
+
+
     if hasattr(clf, 'predict_proba'):
         # For compatibility with different sklearn versions
         yprob = clf.predict_proba(X)
@@ -522,6 +530,40 @@ def fit_clf(args, clf_name, val, n_fold, project_name, save, scoring):
     try:
         if hasattr(temp, 'coef_'):
             coefficients = temp.coef_
+
+            #################################################################################################################################################
+            #################################################################################################################################################
+            #################################################################################################################################################
+            #################################################################################################################################################
+            ####################insert logic here to fit model and update values for coefficients, p_values, fdr_corrected_pvals,  and significant_features 
+            clf_calibrated = CalibratedClassifierCV(clf, method="sigmoid", cv=7)
+            clf_calibrated.fit(X, y)
+            p_hat_calibrated = clf_calibrated.predict_proba(X)[:, 1]
+            W = np.diag(p_hat_calibrated * (1 - p_hat_calibrated))
+            H = X.T @ W @ X
+            cov_matrix = np.linalg.inv(H)
+            standard_errors = np.sqrt(np.diag(cov_matrix))
+            coefficients = np.array(coefficients)
+            z_scores = coefficients / standard_errors
+            p_values = 2 * (1 - norm.cdf(np.abs(z_scores)))
+            print(f"Coefficient {coefficients}")
+            print(f"Standard Error {standard_errors}")
+            print(f"Z-score: {z_scores}")
+            print(f"P-value: {p_values}")
+            alpha = 0.05
+            rejected, pvals_corrected, _, _ = multipletests(p_values, alpha=alpha, method='fdr_bh')
+            print(f"FDR-corrected P-value: {pvals_corrected}")
+            print(f"Significant (FDR): {rejected}")
+            #################################################################################################################################################
+            #################################################################################################################################################
+            #################################################################################################################################################
+            #################################################################################################################################################
+
+
+
+
+        
+
 
             
         elif hasattr(temp, 'feature_importances_'):
@@ -850,3 +892,54 @@ if __name__ == '__main__':
                       concurrency=int(args.concurrency))
     report.plot_scores(os.path.join('polyr_' + args.name, args.name))
     report.plot_features(os.path.join('polyr_' + args.name, args.name))
+
+
+
+def firth_logit_fit(X, y, max_iter=100, tol=1e-3):
+    """
+    Implements Firth Penalized Logistic Regression.
+    
+    Parameters:
+        X (array-like): Feature matrix.
+        y (array-like): Binary target variable.
+        max_iter (int): Maximum iterations for optimization.
+        tol (float): Convergence tolerance.
+    
+    Returns:
+        Dictionary with coefficients, standard errors, and p-values.
+    """
+    X = np.array(X)
+    y = np.array(y).astype(float)
+
+    # Add intercept if not present
+    if np.all(X[:, 0] != 1):
+        X = sm.add_constant(X)
+
+    # Standard logistic regression initialization
+    init_params = np.zeros(X.shape[1])
+
+    # Firth correction function
+    def firth_penalized_log_likelihood(params):
+        linear_pred = X @ params
+        p = 1 / (1 + np.exp(-linear_pred))
+        log_likelihood = np.sum(y * np.log(p + 1e-9) + (1 - y) * np.log(1 - p + 1e-9))
+        W = np.diag(p * (1 - p))
+        fisher_information = X.T @ W @ X
+        penalty = 0.5 * np.log(np.linalg.det(fisher_information + np.eye(X.shape[1]) * 1e-6))
+        return -(log_likelihood - penalty)
+
+    # Optimize the penalized likelihood
+    result = minimize(firth_penalized_log_likelihood, init_params, method='BFGS', options={'maxiter': max_iter})
+
+    # Extract coefficients
+    coef = result.x
+
+    # Compute standard errors using inverse Hessian
+    hessian_inv = result.hess_inv
+    std_err = np.sqrt(np.diag(hessian_inv))
+
+    # Compute Wald z-score and p-values
+    z_scores = coef / std_err
+    p_values = 2 * (1 - sm.distributions.norm.cdf(np.abs(z_scores)))
+
+    return coef, std_err, p_values

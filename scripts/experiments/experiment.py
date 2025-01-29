@@ -12,6 +12,8 @@ from utils.usp_utils import *
 
 from scipy.stats import norm
 from statsmodels.stats.multitest import multipletests
+from sklearn.decomposition import TruncatedSVD
+
 
 
 
@@ -147,47 +149,14 @@ def main():
 
                     scores = report.scores[classifier, 'test']
                     if classifier == 'Logistic Regression':
-                        
+
                         weights = report.coefficients['Logistic Regression'][0][0]
-                        P = 1 / (1 + np.exp(-np.dot(X, weights))) #sigmoid function
-                        P = np.clip(P, 1e-15, 1 - 1e-15)  # Clip probabilities to avoid numerical instability
-
-                        W = np.diag(P * (1 - P))
                         
-                        lambda_reg = 1e-6  # Small regularization parameter
-                        H = -np.dot(np.dot(X.T, W), X) - lambda_reg * np.eye(X.shape[1])
-                        
-                        det_H = np.linalg.det(H)
-                        cond_H = np.linalg.cond(H)
-                        print(f"Determinant of H: {det_H}")
-                        print(f"Condition number of H: {cond_H}")
-                        try:
-                            H_inv = np.linalg.inv(-H)
-                        except Exception as e:
-                            print(e)
-                            exit()
-                        
-                        variances = np.diag(H_inv)
-                        standard_errors = np.sqrt(variances)
-                        z_scores = weights / standard_errors
-                        p_values = 2 * (1 - norm.cdf(np.abs(z_scores)))
-                        p_values = np.nan_to_num(p_values, nan=1.0)  # Replace NaN with 1.0 (non-significant)
-
-
-                        alpha = 0.05
-                        rejected, fdr_corrected_pvals, _, _ = multipletests(p_values, alpha=alpha, method='fdr_bh')
-                        significant_indices = np.where(rejected)[0]
 
 
 
-                        #for i, (weight, se, z, p) in enumerate(zip(weights, standard_errors, z_scores, p_values)):
-                        #    print(f"Feature {i}: Coefficient = {weight:.4f}, SE = {se:.4f}, Z = {z:.4f}, p-value = {p:.4e}")
 
 
-
-                        print(f'significant_indices {significant_indices}')
-                        print(f'fdr_corrected_pvals {fdr_corrected_pvals}')
-                        print(f'p_values {p_values}')
 
                         
 
@@ -203,9 +172,6 @@ def main():
                                 'subject' : subject_id, 
                                 'time' : str(int(time.time())),
                                 'feature-importance' : weights,
-                                'p_values' : p_values,
-                                'fdr_corrected_pvals' : fdr_corrected_pvals,
-                                'significant_indices' : significant_indices
                             }
                         )
                         print(f'p_values : {report.p_values}')

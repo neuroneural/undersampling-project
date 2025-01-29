@@ -104,11 +104,11 @@ def perform_windowing(data_df):
             sr2_section = sr2[:, sr2_start_ix:sr2_end_ix]
             sr2_section_noise = sr2_noise[:, sr2_start_ix:sr2_end_ix]
 
-            sr1_fnc_triu = np.corrcoef(sr1_section)[np.triu_indices(n_regions)]
-            sr1_noise_fnc_triu = np.corrcoef(sr1_section_noise)[np.triu_indices(n_regions)]
+            sr1_fnc_triu = np.corrcoef(sr1_section)[np.triu_indices(n_regions, k=1)]
+            sr1_noise_fnc_triu = np.corrcoef(sr1_section_noise)[np.triu_indices(n_regions, k=1)]
 
-            sr2_fnc_triu = np.corrcoef(sr2_section)[np.triu_indices(n_regions)]
-            sr2_noise_fnc_triu = np.corrcoef(sr2_section_noise)[np.triu_indices(n_regions)]
+            sr2_fnc_triu = np.corrcoef(sr2_section)[np.triu_indices(n_regions, k=1)]
+            sr2_noise_fnc_triu = np.corrcoef(sr2_section_noise)[np.triu_indices(n_regions, k=1)]
 
             concat_sr1_sr2 = np.concatenate((sr1_fnc_triu , sr2_fnc_triu))
             concat_sr1_sr2_noise = np.concatenate((sr1_noise_fnc_triu , sr2_noise_fnc_triu))
