@@ -181,14 +181,14 @@ def plot_combined_results(oulu_df, hcp_df, noise_dataset, kernel_type):
             ax.grid(True, which='both', axis='both', linestyle='--')
 
     # Label signal datasets further left
-    axes[0, 0].annotate("Multi-Scale (OULU)", xy=(-0.25, 0.5), xycoords='axes fraction', fontsize=14, rotation=90,
+    axes[0, 0].annotate("Multi-Scale (OULU)", xy=(-0.25, 0.5), xycoords='axes fraction', fontsize=28, rotation=90,
                         ha='center', va='center', annotation_clip=False)
-    axes[1, 0].annotate("Single-Scale (HCP)", xy=(-0.25, 0.5), xycoords='axes fraction', fontsize=14, rotation=90,
+    axes[1, 0].annotate("Single-Scale (HCP)", xy=(-0.25, 0.5), xycoords='axes fraction', fontsize=28, rotation=90,
                         ha='center', va='center', annotation_clip=False)
 
     # Set shared axis labels
-    fig.text(0.509, 0.15, "SNR", ha='center', fontsize=14)
-    fig.text(0.045, 0.57, "AUC", va='center', rotation=90, fontsize=14)
+    fig.text(0.509, 0.15, "SNR", ha='center', fontsize=28)
+    fig.text(0.045, 0.57, "AUC", va='center', rotation=90, fontsize=28)
 
     # Adjust layout to add space at the bottom
     plt.tight_layout(rect=[0.02, 0.15, 0.95, 0.98])  # Bottom margin increased to 0.15
