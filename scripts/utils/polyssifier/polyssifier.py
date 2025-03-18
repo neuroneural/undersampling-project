@@ -27,6 +27,10 @@ from sklearn.calibration import CalibratedClassifierCV
 from scipy.stats import norm
 
 
+from sklearn.linear_model import LogisticRegression
+from tqdm import tqdm
+from sklearn.preprocessing import StandardScaler
+
 
 logger = logging.getLogger(__name__)
 
@@ -536,24 +540,51 @@ def fit_clf(args, clf_name, val, n_fold, project_name, save, scoring):
             #################################################################################################################################################
             #################################################################################################################################################
             ####################insert logic here to fit model and update values for coefficients, p_values, fdr_corrected_pvals,  and significant_features 
-            clf_calibrated = CalibratedClassifierCV(clf, method="sigmoid", cv=7)
-            clf_calibrated.fit(X, y)
-            p_hat_calibrated = clf_calibrated.predict_proba(X)[:, 1]
-            W = np.diag(p_hat_calibrated * (1 - p_hat_calibrated))
-            H = X.T @ W @ X
-            cov_matrix = np.linalg.inv(H)
-            standard_errors = np.sqrt(np.diag(cov_matrix))
-            coefficients = np.array(coefficients)
-            z_scores = coefficients / standard_errors
-            p_values = 2 * (1 - norm.cdf(np.abs(z_scores)))
-            print(f"Coefficient {coefficients}")
-            print(f"Standard Error {standard_errors}")
-            print(f"Z-score: {z_scores}")
-            print(f"P-value: {p_values}")
-            alpha = 0.05
-            rejected, pvals_corrected, _, _ = multipletests(p_values, alpha=alpha, method='fdr_bh')
-            print(f"FDR-corrected P-value: {pvals_corrected}")
-            print(f"Significant (FDR): {rejected}")
+            '''
+            n_permutations = 5000
+            alpha=0.05
+            random_seed=42
+            w = coefficients.ravel()
+            d = X.shape[1]
+            
+            # Original coefficients
+            original_coefs = np.abs(w).ravel()  # Use absolute values for two-tailed test
+
+            # Store null distribution for each feature
+            null_distribution = np.zeros((d, n_permutations))
+
+            # Permutation testing loop
+            np.random.seed(random_seed)
+            for i in tqdm(range(n_permutations)):
+                # Shuffle labels to break feature-label relationship
+                y_permuted = np.random.permutation(y)
+                # Train model on permuted labels
+                model = LogisticRegression(penalty='l2', C=1, solver='lbfgs', max_iter=1000)
+                scaler = StandardScaler()
+                X_scaled = scaler.fit_transform(X)
+                model.fit(X_scaled, y_permuted)
+                # Store absolute coefficients of permuted model
+                null_distribution[:, i] = np.abs(model.coef_.ravel())
+
+            # Calculate p-values with pseudocoun            pseudocount = 1
+            p_values = (pseudocount + np.sum(null_distribution >= original_coefs[:, np.newaxis], axis=1)) / (n_permutations + pseudocount)
+
+            # Check number of permutations exceeding original coefficients for the first 5 features
+            for feature_idx in range(5):
+                num_exceed = np.sum(null_distribution[feature_idx, :] >= original_coefs[feature_idx])
+                print(f'Feature {feature_idx}: {num_exceed} permutations exceed the original coefficient')
+
+            # Adjust for multiple testing using Benjamini-Hochberg FDR control
+            reject, fdr_corrected_pvals, _, _ = multipletests(p_values, alpha=alpha, method='fdr_bh')
+
+            # Get significant features
+            significant_features = np.where(reject)[0]
+            print(f'p_values: {p_values}')
+            print(f'pvals_adjusted: {fdr_corrected_pvals}')
+            print(f'significant_features: {significant_features}')
+            print(f'num significant_features: {len(significant_features)} of {w.shape[0]}')
+            print
+            '''
             #################################################################################################################################################
             #################################################################################################################################################
             #################################################################################################################################################

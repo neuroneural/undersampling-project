@@ -139,58 +139,28 @@ def main():
                 logging.info(f'\n\n\n\t\t\tSNR {SNR} - noise_ix {noise_ix} - sr {sr.upper()}')
 
 
-                report = poly(data=X, label=y, groups=group, n_folds=n_folds, scale=True, concurrency=1, save=False, 
-                            exclude=['Decision Tree', 'Random Forest', 'Voting', 'Nearest Neighbors', 'Linear SVM', 'SVM', 'Multilayer Perceptron', 'Naive Bayes'], scoring='auc', 
-                             project_name=sr)
+                report = poly(data=X, label=y, groups=group, n_folds=n_folds, scale=True, concurrency=1,
+                            exclude=['Decision Tree', 'Random Forest', 'Voting', 'Nearest Neighbors', 'Linear SVM', 'SVM', 'Multilayer Perceptron', 'Naive Bayes'], 
+                            save=True, scoring='auc', project_name=f'{sr}-{SNR}')
                 
                 for classifier in report.scores.columns.levels[0]:
                     if classifier == 'Voting':
                         continue
 
                     scores = report.scores[classifier, 'test']
-                    if classifier == 'Logistic Regression':
-
-                        weights = report.coefficients['Logistic Regression'][0][0]
-                        
-
-
-
-
-
-
-                        
-
-                        results[sr].append(
-                            {
-                                'noise_no': noise_ix,
-                                'snr': SNR,
-                                'classifier': classifier,
-                                'test_scores': scores, 
-                                'target': report.target, 
-                                'predictions': np.array(report.predictions[classifier]).astype(int),
-                                'test_proba': report.test_proba[classifier],
-                                'subject' : subject_id, 
-                                'time' : str(int(time.time())),
-                                'feature-importance' : weights,
-                            }
-                        )
-                        print(f'p_values : {report.p_values}')
-                        print(f'fdr_corrected_pvals : {report.fdr_corrected_pvals}')
-                        print(f'significant_features : {report.significant_features}')
-                    else:
-                        results[sr].append(
-                            {
-                                'noise_no': noise_ix,
-                                'snr': SNR,
-                                'classifier': classifier,
-                                'test_scores': scores, 
-                                'target': report.target, 
-                                'predictions': np.array(report.predictions[classifier]).astype(int),
-                                'test_proba': report.test_proba[classifier],
-                                'subject' : subject_id, 
-                                'time' : str(int(time.time()))
-                            }
-                        )
+                    results[sr].append(
+                        {
+                            'noise_no': noise_ix,
+                            'snr': SNR,
+                            'classifier': classifier,
+                            'test_scores': scores, 
+                            'target': report.target, 
+                            'predictions': np.array(report.predictions[classifier]).astype(int),
+                            'test_proba': report.test_proba[classifier],
+                            'subject' : subject_id, 
+                            'time' : str(int(time.time()))
+                        }
+                    )
 
                     logging.info(f'SNR {SNR} - noise_ix {noise_ix} - sr {sr} - scores {scores}')
 

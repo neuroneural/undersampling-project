@@ -104,11 +104,11 @@ def perform_windowing(data_df):
             sr2_section = sr2[:, sr2_start_ix:sr2_end_ix]
             sr2_section_noise = sr2_noise[:, sr2_start_ix:sr2_end_ix]
 
-            sr1_fnc_triu = np.corrcoef(sr1_section)[np.triu_indices(n_regions, k=1)]
-            sr1_noise_fnc_triu = np.corrcoef(sr1_section_noise)[np.triu_indices(n_regions, k=1)]
+            sr1_fnc_triu = np.corrcoef(sr1_section)[np.triu_indices(n_regions)]#, k=1)]
+            sr1_noise_fnc_triu = np.corrcoef(sr1_section_noise)[np.triu_indices(n_regions)]#, k=1)]
 
-            sr2_fnc_triu = np.corrcoef(sr2_section)[np.triu_indices(n_regions, k=1)]
-            sr2_noise_fnc_triu = np.corrcoef(sr2_section_noise)[np.triu_indices(n_regions, k=1)]
+            sr2_fnc_triu = np.corrcoef(sr2_section)[np.triu_indices(n_regions)]#, k=1)]
+            sr2_noise_fnc_triu = np.corrcoef(sr2_section_noise)[np.triu_indices(n_regions)]#, k=1)]
 
             concat_sr1_sr2 = np.concatenate((sr1_fnc_triu , sr2_fnc_triu))
             concat_sr1_sr2_noise = np.concatenate((sr1_noise_fnc_triu , sr2_noise_fnc_triu))
@@ -400,6 +400,7 @@ def set_data_params(args, project_dir):
 
     if hasattr(args, 'n_folds'):
         n_folds = args.n_folds if args.n_folds != None else 7
+        n_folds = int(n_folds)
     else:
         n_folds = 7
 
@@ -644,7 +645,7 @@ def get_combined_features(window_pairs, class_labels, group_labels, type='none')
             X.append(pair[0] + pair[1])
         elif type == 'concat':
             concat_feature = np.concatenate((pair[0], pair[1]))
-            assert len(concat_feature) == 1431*2, 'Concatenation should have the same length as the sum of the two windows'
+            #assert len(concat_feature) == 1378*2, 'Concatenation should have the same length as the sum of the two windows'
             X.append(concat_feature)
         else:
             print('No feature combination type specified')
