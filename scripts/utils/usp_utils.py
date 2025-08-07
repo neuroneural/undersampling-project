@@ -77,10 +77,8 @@ def perform_windowing(data_df):
 
         
         sr1 = data_df[data_df['Subject_ID'] == subject]['SR1_Timecourse'].iloc[0]
-        sr1_noise = data_df[data_df['Subject_ID'] == subject]['SR1_Timecourse_Noise'].iloc[0]
-
         sr2 = data_df[data_df['Subject_ID'] == subject]['SR2_Timecourse'].iloc[0]
-        sr2_noise = data_df[data_df['Subject_ID'] == subject]['SR2_Timecourse_Noise'].iloc[0]
+        target = data_df[data_df['Subject_ID'] == subject]['Target'].iloc[0]
 
 
         n_regions, n_tp_sr1 = sr1.shape
@@ -99,37 +97,19 @@ def perform_windowing(data_df):
 
         for j in range(n_sections):
             sr1_section = sr1[:, sr1_start_ix:sr1_end_ix]
-            sr1_section_noise = sr1_noise[:, sr1_start_ix:sr1_end_ix]
-
             sr2_section = sr2[:, sr2_start_ix:sr2_end_ix]
-            sr2_section_noise = sr2_noise[:, sr2_start_ix:sr2_end_ix]
 
             sr1_fnc_triu = np.corrcoef(sr1_section)[np.triu_indices(n_regions)]
-            sr1_noise_fnc_triu = np.corrcoef(sr1_section_noise)[np.triu_indices(n_regions)]
-
             sr2_fnc_triu = np.corrcoef(sr2_section)[np.triu_indices(n_regions)]
-            sr2_noise_fnc_triu = np.corrcoef(sr2_section_noise)[np.triu_indices(n_regions)]
 
             concat_sr1_sr2 = np.concatenate((sr1_fnc_triu , sr2_fnc_triu))
-            concat_sr1_sr2_noise = np.concatenate((sr1_noise_fnc_triu , sr2_noise_fnc_triu))
-
             add_sr1_sr2 = sr1_fnc_triu + sr2_fnc_triu
-            add_sr1_sr2_noise = sr1_noise_fnc_triu + sr2_noise_fnc_triu
 
-            sr1_data.append({'subject': subject, 'SR1_Window': sr1_fnc_triu, 'target': '0'})
-            sr1_data.append({'subject': subject, 'SR1_Window': sr1_noise_fnc_triu, 'target': '1'})
             
-
-            sr2_data.append({'subject': subject, 'SR2_Window': sr2_fnc_triu, 'target': '0'})
-            sr2_data.append({'subject': subject, 'SR2_Window': sr2_noise_fnc_triu, 'target': '1'})
-            
-
-            concat_data.append({'subject': subject,'Concat_Window': concat_sr1_sr2,'target': '0' })
-            concat_data.append({'subject': subject, 'Concat_Window': concat_sr1_sr2_noise,'target': '1'})
-            
-
-            add_data.append({'subject': subject,'Add_Window': add_sr1_sr2,'target': '0'})
-            add_data.append({'subject': subject,'Add_Window': add_sr1_sr2_noise,'target': '1'})
+            sr1_data.append({'subject': subject, 'SR1_Window': sr1_fnc_triu, 'target': target})
+            sr2_data.append({'subject': subject, 'SR2_Window': sr2_fnc_triu, 'target': target})
+            concat_data.append({'subject': subject,'Concat_Window': concat_sr1_sr2,'target': target})
+            add_data.append({'subject': subject,'Add_Window': add_sr1_sr2,'target': target})
 
 
             sr1_start_ix += sr1_stride
@@ -145,41 +125,18 @@ def perform_windowing(data_df):
 
 def load_timecourses(signal_data, data_params):
     signal_dataset = data_params['signal_dataset']
-    noise_dataset = data_params['noise_dataset']
-    cov_mat = data_params['cov_mat']
 
-    if cov_mat:
-        covariance_matrix = data_params['covariance_matrix']
-    else:
-        correlation_matrix = data_params['correlation_matrix']
     
     
-    L = data_params['L']
-
-
     subjects = data_params['subjects']
-    NOISE_SIZE = data_params['NOISE_SIZE']
     undersampling_rate = data_params['undersampling_rate']
-    SNR = data_params['SNR']
-    
+    isAge = 'age' in data_params['demo_type']
     
 
 
-    noises = {}
     ################ loading and preprocessing
     all_data = []
     for subject in subjects:
-        if (noise_dataset == 'FBIRN') or (noise_dataset == 'COBRE'):
-            noises[subject] = create_colored_noise(covariance_matrix, L, NOISE_SIZE) if cov_mat \
-                  else create_colored_noise(correlation_matrix, L, NOISE_SIZE)
-            logging.debug(f'computed noise for subject: {subject}')
-
-            if signal_dataset == 'SIMULATION': 
-                noises[subject] = noises[subject][:5, :]
-            logging.debug(f'noises[subject].shape {noises[subject].shape}')
-                
-
-
         logging.debug(f'loading timecourse for subject {subject}')
         if signal_dataset == 'HCP': 
             logging.debug('HCP dataset detected during loading')
@@ -211,22 +168,12 @@ def load_timecourses(signal_data, data_params):
         logging.debug(f'subject {subject} SR1 shape - {sr1_tc.shape}')
         logging.debug(f'subject {subject} SR2 shape - {sr2_tc.shape}')
 
-
-        # sample from noise and scale
-        noise_sr1 = None
-        noise_sr2 = None
-
-        if signal_dataset == 'HCP':
-            noise_sr1 = scale_noise(noises[subject], sr1_tc, SNR)
-            noise_sr2 = scale_noise(noises[subject][:,::undersampling_rate], sr2_tc, SNR)
-
-        else:
-            k1 = 2 if signal_dataset == 'OULU' else NOISE_SIZE // sr1_tc.shape[1]
-            k2 = 33 if signal_dataset == 'OULU' else NOISE_SIZE // sr2_tc.shape[1]
-
-            noise_sr1 = scale_noise(noises[subject][:,::k1], sr1_tc, SNR)
-            noise_sr2 = scale_noise(noises[subject][:,::k2], sr2_tc, SNR)
-
+        demographics_data = data_params['demographics_data']
+        
+        target = demographics_data[demographics_data['ID']==subject]['age_bin_binary'] if isAge \
+        else demographics_data[demographics_data['ID']==subject]['gender']
+        
+        target = int(target)
 
 
 
@@ -235,8 +182,7 @@ def load_timecourses(signal_data, data_params):
                 'Subject_ID'             :  subject,
                 'SR1_Timecourse'         :  sr1_tc,
                 'SR2_Timecourse'         :  sr2_tc,
-                'SR1_Timecourse_Noise'   :  noise_sr1 + sr1_tc,
-                'SR2_Timecourse_Noise'   :  noise_sr2 + sr2_tc
+                'Target'                 :  target
             }
         )
     ################ end loop over subjects
@@ -354,28 +300,6 @@ def set_data_params(args, project_dir):
     data_params = {}
     data_params['project_dir'] = project_dir
 
-
-    lower = 1.5
-    upper = 2.5
-    step = 0.1
-
-    SNRs = np.round(np.arange(lower, upper+step, step), 1)
-
-    if args.snr_int != None:
-        if len(args.snr_int) == 2:
-            lower = args.snr_int[0]
-            upper = args.snr_int[1]
-
-        if len(args.snr_int) == 3:
-            lower = args.snr_int[0]
-            upper = args.snr_int[1]
-            step = args.snr_int[2]
-
-        SNRs = np.round(np.arange(lower, upper+step, step), 1)
-
-        if len(args.snr_int) == 1:
-            SNRs = [args.snr_int[0]]
-    
     
     
     log_level = 'DEBUG' if args.verbose else 'INFO'
@@ -385,15 +309,6 @@ def set_data_params(args, project_dir):
 
     
     signal_dataset = args.signal_dataset.upper()    
-    noise_dataset = args.noise_dataset.upper()
-
-
-
-
-    if hasattr(args, 'subject_id'):
-        subject_id = args.subject_id if args.subject_id != None else '000300655084'
-    else:
-        subject_id = '000300655084' if noise_dataset.lower() == 'fbirn' else '0'
 
 
     if hasattr(args, 'us_rate'):
@@ -401,19 +316,11 @@ def set_data_params(args, project_dir):
     else:
         us_rate = 6 if signal_dataset.lower() == 'hcp' else 1
 
-    if noise_dataset.lower() == 'cobre':
-        subject_id = int(subject_id)
-
     if hasattr(args, 'n_folds'):
         n_folds = args.n_folds if args.n_folds != None else 7
     else:
         n_folds = 7
 
-    if hasattr(args, 'num_noise'):
-        num_noise = args.num_noise if args.num_noise != None else 1
-    else:
-        num_noise = 1
-    
     if hasattr(args, 'sampler'):
         sampler = args.sampler if args.sampler != None else 'tpe'
     else:
@@ -424,32 +331,23 @@ def set_data_params(args, project_dir):
     else:
         kernel_type = 'none'
 
-    if hasattr(args, 'cov_mat'):
-        cov_mat = args.cov_mat
-    else:
-        cov_mat = False
-
 
     signal_data = pd.read_pickle(f'{project_dir}/assets/data/{signal_dataset}_data.pkl')
-    noise_data = pd.read_pickle(f'{project_dir}/assets/data/cov/{noise_dataset}_data.pkl') if cov_mat \
-        else pd.read_pickle(f'{project_dir}/assets/data/{noise_dataset}_data.pkl')
+    subjects = np.unique(signal_data['subject'])
+
+    demographics_filepath = args.demographics_filepath
+    demo_type = args.demo_type
+    demographics_data = pd.read_csv(demographics_filepath, delimiter='\t', dtype={'ID': str})
+
+    demographics_data['age_bin'] = pd.qcut(
+        demographics_data['age'],
+        q=3,
+        labels=False
+    )
+    demographics_data['age_bin_binary'] = (demographics_data['age_bin'] > 0).astype(int)
+    demographics_data['gender'] = demographics_data['gender'].str.lower().map({'female': 0, 'male': 1})
 
 
-    
-
-    L, correlation_matrix = get_subject_data(subject_id, noise_data)
-
-    data_params['correlation_matrix'] = correlation_matrix
-
-    if cov_mat:
-        covariance_matrix = noise_data['cov_mat']    #TODO load old dict
-        logging.debug(f'covariance_matrix {covariance_matrix}')
-        data_params['covariance_matrix'] = covariance_matrix
-
-    logging.debug(f'L {L}')
-    logging.debug(f'correlation_matrix {correlation_matrix}')
-
-    data_params['L'] = L
 
 
     if signal_dataset == 'OULU':
@@ -464,26 +362,21 @@ def set_data_params(args, project_dir):
         NOISE_SIZE = 1200
         undersampling_rate = us_rate
 
-    subjects = np.unique(signal_data['subject'])
-    
-    data_params['subjects'] = subjects
-    data_params['noise_dataset'] = noise_dataset
     data_params['signal_dataset'] = signal_dataset
-    data_params['SNRs'] = SNRs
     data_params['n_folds'] = n_folds
     data_params['log_level'] = log_level
     data_params['signal_dataset'] = signal_dataset
-    data_params['noise_dataset'] = noise_dataset
     data_params['sampler'] = sampler
     data_params['signal_data'] = signal_data
-    data_params['noise_data'] = noise_data
     data_params['undersampling_rate'] = int(undersampling_rate)
     data_params['NOISE_SIZE'] = NOISE_SIZE
-    data_params["num_noise"] = num_noise
     data_params["kernel_type"] = kernel_type
-    data_params['cov_mat'] = cov_mat
-    data_params['subject_id'] = subject_id 
     data_params['window_pairs'] = window_pairs
+    data_params['subjects'] = subjects
+    data_params['demographics_data'] = demographics_data
+    data_params['demo_type'] = demo_type
+    
+
 
     return data_params
 

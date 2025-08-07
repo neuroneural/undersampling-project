@@ -137,7 +137,7 @@ def poly(data, label, groups=None, n_folds=10, scale=True, exclude=[],
             clfs.append(fitted_clf)
             scores.loc[n, (clf_name, 'train')] = train_score
             scores.loc[n, (clf_name, 'test')] = test_score
-            temp += confusion
+            temp += confusion #TODO uncomment? there's an issue here
             temp_prob[kf[n][1]] = prob
             temp_pred[kf[n][1]] = _le.inverse_transform(prediction)
             coefficients[clf_name].append(coefs)
