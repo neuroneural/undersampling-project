@@ -58,9 +58,6 @@ def parse_X_y_groups(data_df, name):
     le = LabelEncoder()
     group = le.fit_transform(data_df['subject'])
     y = data_df['target']
-    y = np.array([str(entry) for entry in y])
-    le_y = LabelEncoder()
-    y = le_y.fit_transform(y)
     X = data_df[f'{name}_Window']
     X = np.array([np.array(entry) for entry in X])
     return X, y, group
@@ -80,6 +77,8 @@ def perform_windowing(data_df):
         sr2 = data_df[data_df['Subject_ID'] == subject]['SR2_Timecourse'].iloc[0]
         target = data_df[data_df['Subject_ID'] == subject]['Target'].iloc[0]
 
+
+        print(f'extracted target {target}')
 
         n_regions, n_tp_sr1 = sr1.shape
         _, n_tp_sr2 = sr2.shape
@@ -170,12 +169,15 @@ def load_timecourses(signal_data, data_params):
 
         demographics_data = data_params['demographics_data']
         
-        target = demographics_data[demographics_data['ID']==subject]['age_bin_binary'] if isAge \
+        target = demographics_data[demographics_data['ID']==subject]['age'] if isAge \
         else demographics_data[demographics_data['ID']==subject]['gender']
         
-        target = int(target)
 
-
+        if isinstance(target,  pd.core.series.Series):
+            try:
+                target = target.iloc[0]
+            except:
+                print(f'issue extracting {target}')
 
         all_data.append(
             {
@@ -234,7 +236,7 @@ def plot_cv_indices(cv, X, y, group, ax, n_splits, save_data, lw=10):
         xlabel="Sample index",
         ylabel="CV iteration",
         ylim=[n_splits + 2.2, -0.2],
-        xlim=[0, 1600],
+        xlim=[0, len(X)],
     )
     fig = ax.get_figure()
     sampling_rate = save_data['sampling_rate']
@@ -309,8 +311,10 @@ def set_data_params(args, project_dir):
 
     
     signal_dataset = args.signal_dataset.upper()    
-
-
+    
+    mix_subjects = args.mix_subjects if hasattr(args, 'mix_subjects') else False
+    
+        
     if hasattr(args, 'us_rate'):
         us_rate = args.us_rate if args.us_rate != None else 6
     else:
@@ -335,19 +339,18 @@ def set_data_params(args, project_dir):
     signal_data = pd.read_pickle(f'{project_dir}/assets/data/{signal_dataset}_data.pkl')
     subjects = np.unique(signal_data['subject'])
 
-    demographics_filepath = args.demographics_filepath
-    demo_type = args.demo_type
-    demographics_data = pd.read_csv(demographics_filepath, delimiter='\t', dtype={'ID': str})
-
-    demographics_data['age_bin'] = pd.qcut(
-        demographics_data['age'],
-        q=3,
-        labels=False
-    )
-    demographics_data['age_bin_binary'] = (demographics_data['age_bin'] > 0).astype(int)
-    demographics_data['gender'] = demographics_data['gender'].str.lower().map({'female': 0, 'male': 1})
+    if hasattr(args, 'demographics_filepath'):
+        demographics_filepath = args.demographics_filepath
+        demographics_data = pd.read_csv(demographics_filepath, delimiter='\t', dtype={'ID': str})
+        demographics_data['gender'] = demographics_data['gender'].str.lower().map({'female': 0, 'male': 1})
+    else: 
+        demographics_data = None
 
 
+    if hasattr(args, 'demo_type'):
+        demo_type = args.demo_type
+    else:
+        demo_type = 'none'
 
 
     if signal_dataset == 'OULU':
@@ -375,6 +378,7 @@ def set_data_params(args, project_dir):
     data_params['subjects'] = subjects
     data_params['demographics_data'] = demographics_data
     data_params['demo_type'] = demo_type
+    data_params['mix_subjects'] = mix_subjects
     
 
 
@@ -492,8 +496,8 @@ def create_window_pairs(sr1_df, sr2_df):
 
     for label in [0, 1]:
         for subject in subjects:
-            sr1_windows = sr1_df[(sr1_df['subject'] == subject) & (sr1_df['target'] == str(label))]
-            sr2_windows = sr2_df[(sr2_df['subject'] == subject) & (sr2_df['target'] == str(label))]
+            sr1_windows = sr1_df[(sr1_df['subject'] == subject) & (sr1_df['target'] == label)]
+            sr2_windows = sr2_df[(sr2_df['subject'] == subject) & (sr2_df['target'] == label)]
             
             n_windows = len(sr1_windows)
 
@@ -529,8 +533,8 @@ def create_window_pairs(sr1_df, sr2_df):
 
 
 def get_combined_features(window_pairs, class_labels, group_labels, type='none'):
-    assert len(window_pairs) == len(class_labels) == len(group_labels) == 1600, \
-        'Length of windows, class labels, and group labels should be 1600'
+    assert len(window_pairs) == len(class_labels) == len(group_labels), \
+        'Length of windows, class labels, and group labels should be equal'
 
     #return list of windows where each window is the sum of two windows
     X = []
@@ -604,7 +608,7 @@ def take_first_n_windows(windows_sh, class_sh, group_sh):
     for subject in subjects:
         subject_windows = win_df[win_df['subject'] == subject]
         #select the window pairs from one class from the subject
-        for label in ['0', '1']:
+        for label in [0, 1]:
             class_windows = subject_windows[subject_windows['target'] == label]
             #take the first n window pairs, given they are from one subject and one class
             n = 80

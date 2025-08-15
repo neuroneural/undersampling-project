@@ -7,7 +7,7 @@ import time
 import pandas as pd
 import numpy as np
 
-from utils.polyssifier import polyr
+from utils.polyssifier import poly, polyr
 from utils.usp_utils import *
 
 
@@ -22,6 +22,7 @@ def main():
     parser.add_argument('-d', '--demographics-filepath', type=str, help='fullpath to demographics file', required=True)
     parser.add_argument('-t', '--demo_type', type=str, help='type of demographic to use', required=True)
     parser.add_argument('-s', '--signal-dataset', type=str, help='signal dataset name (OULU, HCP)', required=True)
+    parser.add_argument('-m', '--mix-subjects', action='store_true', help='mix subjects in train/test', required=False)
     
 
     parser.add_argument('-u', '--us-rate', type=str, help='undersampling rate for HCP dataset', required=False)
@@ -43,6 +44,7 @@ def main():
     log_level = data_params['log_level']
     window_pairs = data_params['window_pairs']
     us_rate = data_params['undersampling_rate']
+    mix_subjects = data_params['mix_subjects']
 
     logging.basicConfig(level=log_level, format='%(asctime)s - %(levelname)s - %(message)s')
 
@@ -53,6 +55,7 @@ def main():
     logging.info(f'Random Window Pairs: {window_pairs}')
     if signal_dataset.lower() == 'hcp':
         logging.info(f'Undersampling rate for HCP dataset: {us_rate}')
+    logging.info(f'Subject Mixing: {mix_subjects}')   
 
     
 
@@ -72,10 +75,18 @@ def main():
 
     ################ loading and preprocessing
     all_data = load_timecourses(signal_data, data_params)
-
     data_df = pd.DataFrame(all_data)
+    data_df['Target'] = data_df['Target'].apply(lambda x: x.iloc[0] if hasattr(x, 'iloc') else x)
 
-
+    
+    if demo_type == 'gender' and signal_dataset.lower() == 'oulu':
+        print(f'signal dataset: {signal_dataset} select random 2 males')
+        females = data_df[data_df['Target'] == 0]
+        males = data_df[data_df['Target'] == 1]
+        males_sample = males.sample(n=2)
+        data_df = pd.concat([females, males_sample], ignore_index=True)
+    
+    
     ################ windowing
     sr1_data, sr2_data, add_data, concat_data = perform_windowing(data_df)
     
@@ -119,19 +130,24 @@ def main():
 
     for sr, X, y, group in datasets:
         data_params['name'] = sr
+        group = None if mix_subjects else group
 
-
-        report = polyr(data=X, label=y, groups=group, n_folds=n_folds, scale=True, concurrency=1, save=False, 
-                    exclude=['Decision Tree', 'Random Forest', 'Voting', 'Nearest Neighbors', 'Linear SVM'], scoring='auc', 
+        if data_params['demo_type'] == 'age':
+            report = polyr(data=X, label=y, groups=group, n_folds=n_folds, scale=True, concurrency=1, save=False, 
+                        exclude=['Decision Tree', 'Random Forest', 'Voting', 'Nearest Neighbors', 'Linear SVM'], 
+                        project_name=sr)
+        else:
+            report = poly(data=X, label=y, groups=group, n_folds=n_folds, scale=True, concurrency=1, save=False, 
+                    exclude=['Decision Tree', 'Random Forest', 'Voting', 'Nearest Neighbors', 'Linear SVM'], 
                     project_name=sr)
         
         for classifier in report.scores.columns.levels[0]:
-            if classifier == 'Voting':
+            if classifier == 'Median' or classifier == 'Voting':
                 continue
             
             scores = report.scores[classifier, 'test']
 
-            results[sr].append(
+            results[sr].append(  
                 {
                     'classifier': classifier,
                     'test_scores': scores, 
@@ -159,8 +175,8 @@ def main():
             month_date = '{}-{}'.format(datetime.now().strftime('%m'), datetime.now().strftime('%d'))
 
 
-            filename = f'{key}_{signal_dataset}_{current_date}_usrate_{us_rate}.pkl' if not window_pairs \
-                else f'{key}_{signal_dataset}_{current_date}_usrate_{us_rate}_rwp.pkl'
+            filename = f'{key}_{signal_dataset}_demotype_{demo_type}_mixing_{mix_subjects}_{current_date}_usrate_{us_rate}.pkl' if not window_pairs \
+                else f'{key}_{signal_dataset}_demotype_{demo_type}_mixing_{mix_subjects}_{current_date}_usrate_{us_rate}_rwp.pkl'
             
             directory = Path(f'{pkl_dir}/{month_date}') if not window_pairs else Path(f'{pkl_dir}/{month_date}/rwp')
             directory.mkdir(parents=True, exist_ok=True)

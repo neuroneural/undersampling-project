@@ -1,6 +1,6 @@
 import numpy as np
 from sklearn.model_selection import StratifiedGroupKFold, StratifiedKFold, GridSearchCV, KFold
-from sklearn.metrics import f1_score, confusion_matrix, roc_auc_score, mean_squared_error, r2_score
+from sklearn.metrics import f1_score, confusion_matrix, roc_auc_score, mean_squared_error, r2_score, balanced_accuracy_score
 from .poly_utils import build_classifiers, MyVoter, build_regressors, MyRegressionMedianer
 from .report import Report
 import logging
@@ -104,7 +104,8 @@ def poly(data, label, groups=None, n_folds=10, scale=True, exclude=[],
     shared['kf'] = kf
     shared['X'] = data
     shared['y'] = label
-    shared['groups'] = groups 
+    if groups is not None:
+        shared['groups'] = groups 
     args[0] = shared
 
     args2 = []
@@ -183,9 +184,9 @@ def poly(data, label, groups=None, n_folds=10, scale=True, exclude=[],
 
 
 
-def polyr(data, label, n_folds=10, scale=True, exclude=[],
+def polyr(data, label, groups=None, n_folds=10, scale=True, exclude=[],
           feature_selection=False, num_degrees=1, save=False, scoring='r2',
-          project_name='', concurrency=1, verbose=True):
+          project_name='', concurrency=1, verbose=True, random_state=1988):
     '''
     Input
     data         = numpy matrix with as many rows as samples
@@ -247,9 +248,21 @@ def polyr(data, label, n_folds=10, scale=True, exclude=[],
     logger.info('Initialization, done.')
 
     # This provides train/test indices to split data in train/test sets.
-    skf = KFold(n_splits=n_folds)  # , random_state=1988)
-    skf.get_n_splits(np.zeros(data.shape[0]), label)
-    kf = list(skf.split(np.zeros(data.shape[0]), label))
+    if groups is None:
+        skf = KFold(n_splits=n_folds)  # , random_state=1988)
+        skf.get_n_splits(np.zeros(data.shape[0]), label)
+        kf = list(skf.split(np.zeros(data.shape[0]), label))
+    else: 
+        groups = np.array(groups)
+        _leg = LabelEncoder()
+        groups = _leg.fit_transform(groups)
+        n_groups = len(np.unique(groups))
+        logger.info(f'Detected {n_groups} unique groups')
+        skf = StratifiedGroupKFold(n_splits=n_folds, random_state=random_state, shuffle=True)
+        skf.get_n_splits(X=np.zeros(data.shape[0]), y=label, groups=groups)
+        kf = list(skf.split(np.zeros(data.shape[0]), label, groups))
+        _, ax = plt.subplots()
+        plot_cv_indices(cv=skf, X=data, y=label, group=groups, ax=ax, n_splits=n_folds, name=project_name)
 
     # Parallel processing of tasks
     manager = Manager()
@@ -341,6 +354,9 @@ def _scorer(clf, X, y):
     - predict
     '''
     n_class = len(np.unique(y))
+    if n_class == 1:
+        y_pred = clf.predict(X)
+        score = balanced_accuracy_score(y, y_pred)
     if n_class == 2:
         if hasattr(clf, 'predict_proba'):
             ypred = clf.predict_proba(X)
@@ -359,9 +375,8 @@ def _scorer(clf, X, y):
             ypred = clf.predict(X)
         score = roc_auc_score(y, ypred)
     else:
-        score = f1_score(y, clf.predict(X), average='weighted')
+       score = f1_score(y, clf.predict(X), average='weighted')
     return score
-
 
 
 def plot_cv_indices(cv, X, y, group, ax, n_splits, lw=10, name=''):
@@ -439,8 +454,13 @@ def fit_clf(args, clf_name, val, n_fold, project_name, save, scoring):
     train, test = args[0]['kf'][n_fold]
     X = args[0]['X'][train, :]
     y = args[0]['y'][train]
-    groups = args[0]['groups'][train]
-    logging.info(f'{clf_name} {n_fold} Group Train: {set(groups)}')
+    #groups = args[0]['groups'][train]
+    groups = args[0].get('groups')
+    if groups is not None:
+        groups = args[0]['groups'][train]
+        logging.info(f'{clf_name} {n_fold} Group Train: {set(groups)}')
+        logging.info(f'{clf_name} {n_fold} Train Labels: {set(y)}')
+
     file_name = 'poly_{}/models/{}_{}.p'.format(
         project_name, clf_name, n_fold + 1)
     start = time.time()
@@ -463,8 +483,12 @@ def fit_clf(args, clf_name, val, n_fold, project_name, save, scoring):
 
     X = args[0]['X'][test, :]
     y = args[0]['y'][test]
-    groups = args[0]['groups'][test]
-    logging.info(f'{clf_name} {n_fold} Group Test: {set(groups)}')
+    #groups = args[0]['groups'][test]
+    groups = args[0].get('groups')
+    if groups is not None:
+        groups = args[0]['groups'][test]
+        logging.info(f'{clf_name} {n_fold} Group Test: {set(groups)}')
+        logging.info(f'{clf_name} {n_fold} Test Labels: {set(y)}')
     # Scores
     test_score = _scorer(clf, X, y)
     ypred = clf.predict(X)
@@ -544,142 +568,6 @@ def create_polynomial(data, degree):
                 to_pass_through.itemset(
                     (j, k + i * width_exponential_matrix), (to_add_in.item(j, k)))
     return to_pass_through
-
-
-def polyr(data, label, n_folds=10, scale=True, exclude=[],
-          feature_selection=False, num_degrees=1, save=False, scoring='r2',
-          project_name='', concurrency=1, verbose=True):
-    '''
-    Input
-    data         = numpy matrix with as many rows as samples
-    label        = numpy vector that labels each data row
-    n_folds      = number of folds to run
-    scale        = whether to scale data or not
-    exclude      = list of classifiers to exclude from the analysis
-    feature_selection = whether to use feature selection or not (anova)
-    num_degrees = the degree of the polynomial model to fit to the data (default is linear)
-    save         = whether to save intermediate steps or not
-    scoring      = Type of score to use ['mse', 'r2']
-    project_name = prefix used to save the intermediate steps
-    concurrency  = number of parallel jobs to run
-    verbose      = whether to print or not results
-
-    Ouput
-    scores       = matrix with scores for each fold and classifier
-    confusions   = confussion matrix for each classifier
-    predictions  = Cross validated predicitons for each classifier
-    '''
-    if num_degrees != 1:
-        polynomial_data = create_polynomial(data, num_degrees)
-        return polyr(data=polynomial_data, label=label, n_folds=n_folds, scale=scale, exclude=exclude,
-                     feature_selection=feature_selection, num_degrees=1, save=save, scoring=scoring,
-                     project_name=project_name, concurrency=concurrency, verbose=verbose)
-
-    assert label.shape[0] == data.shape[0],\
-        "Label dimesions do not match data number of rows"
-
-    # If the user wishes to save the intermediate steps and there is not already a polyrssifier models directory then
-    # this statement creates one.
-    if save and not os.path.exists('polyr_{}/models'.format(project_name)):
-        os.makedirs('polyr_{}/models'.format(project_name))
-
-    # Whether or not intermeciate steps will be printed out.
-    if verbose:
-        logger.setLevel(logging.DEBUG)
-    else:
-        logger.setLevel(logging.ERROR)
-    logger.info('Building classifiers ...')
-
-    # The main regressors dictionary
-    regressors = build_regressors(exclude, scale,
-                                  feature_selection,
-                                  data.shape[1])
-
-    scores = pd.DataFrame(columns=pd.MultiIndex.from_product(
-        [regressors.keys(), ['train', 'test']]),
-        index=range(n_folds))
-    predictions = pd.DataFrame(columns=regressors.keys(),
-                               index=range(data.shape[0]))
-    test_prob = pd.DataFrame(columns=regressors.keys(),
-                             index=range(data.shape[0]))
-    confusions = {}
-    coefficients = {}
-    # !fitted_regs =
-    # pd.DataFrame(columns=regressors.keys(), index = range(n_folds))
-
-    logger.info('Initialization, done.')
-
-    # This provides train/test indices to split data in train/test sets.
-    skf = KFold(n_splits=n_folds)  # , random_state=1988)
-    skf.get_n_splits(np.zeros(data.shape[0]), label)
-    kf = list(skf.split(np.zeros(data.shape[0]), label))
-
-    # Parallel processing of tasks
-    manager = Manager()
-    args = manager.list()
-    args.append({})  # Store inputs
-    shared = args[0]
-    shared['kf'] = kf
-    shared['X'] = data
-    shared['y'] = label
-    args[0] = shared
-
-    args2 = []
-    for reg_name, val in regressors.items():
-        for n_fold in range(n_folds):
-            args2.append((args, reg_name, val, n_fold, project_name,
-                          save, scoring))
-
-    if concurrency == 1:
-        result = list(starmap(fit_reg, args2))
-    else:
-        pool = Pool(processes=concurrency)
-        result = pool.starmap(fit_reg, args2)
-        pool.close()
-
-    fitted_regs = {key: [] for key in regressors}
-
-    # Gather results
-    for reg_name in regressors:
-        coefficients[reg_name] = []
-        temp_pred = np.zeros((data.shape[0], ))
-        temp_prob = np.zeros((data.shape[0], ))
-        regs = fitted_regs[reg_name]
-        for n in range(n_folds):
-            train_score, test_score, prediction, prob,\
-                coefs, fitted_reg = result.pop(0)
-            regs.append(fitted_reg)
-            scores.loc[n, (reg_name, 'train')] = train_score
-            scores.loc[n, (reg_name, 'test')] = test_score
-            temp_prob[kf[n][1]] = prob
-            temp_pred[kf[n][1]] = prediction
-            coefficients[reg_name].append(coefs)
-
-        predictions[reg_name] = temp_pred
-        test_prob[reg_name] = temp_prob
-
-    # This calculated the Median of the predictions of the regressors.
-    fitted_regs = pd.DataFrame(fitted_regs)
-    scores['Median', 'train'] = np.zeros((n_folds, ))
-    scores['Median', 'test'] = np.zeros((n_folds, ))
-    temp_pred = np.zeros((data.shape[0], ))
-    for n, (train, test) in enumerate(kf):
-        reg = MyRegressionMedianer(fitted_regs.loc[n].values)
-        X, y = data[train, :], label[train]
-        scores.loc[n, ('Median', 'train')] = _reg_scorer(reg, X, y, scoring)
-        X, y = data[test, :], label[test]
-        scores.loc[n, ('Median', 'test')] = _reg_scorer(reg, X, y, scoring)
-        temp_pred[test] = reg.predict(X)
-
-    predictions['Median'] = temp_pred
-
-    if verbose:
-        print(scores.astype('float').describe().transpose()
-              [['mean', 'std', 'min', 'max']])
-    return Report(scores=scores, confusions=confusions,
-                  predictions=predictions, test_prob=test_prob,
-                  coefficients=coefficients, scoring=scoring,
-                  feature_selection=feature_selection)
 
 
 def _reg_scorer(reg, X, y, scoring):

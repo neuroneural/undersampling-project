@@ -23,3 +23,6 @@ simulation_data.tar
 cmds
 subs/
 demographics.txt
+assets/data/hcp-demographics-subsample.txt
+assets/data/hcp-demographics.txt
+assets/data/oulu-demographics.txt
